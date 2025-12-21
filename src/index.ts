@@ -50,7 +50,7 @@ export async function run(): Promise<void> {
     }
 
     while (attempt <= inputs.maxAttempts) {
-      core.info(`::group::Attempt ${attempt}`);
+      core.startGroup(`Attempt ${attempt}`);
 
       try {
         // Delete stale JUnit file to avoid parsing old results
@@ -262,7 +262,7 @@ export async function run(): Promise<void> {
         // Re-throw to be caught by outer try-catch
         throw attemptError;
       } finally {
-        core.info('::endgroup::');
+        core.endGroup();
       }
 
       attempt++;
