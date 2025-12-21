@@ -17,7 +17,6 @@ import type { FailedTest } from "./types.js";
 
 export async function run(): Promise<void> {
   try {
-    // Validate platform compatibility
     validatePlatform();
 
     const inputs = getInputs();
@@ -39,7 +38,6 @@ export async function run(): Promise<void> {
     const workspace = process.env.GITHUB_WORKSPACE || process.cwd();
     const defaultLocalJunitPath = path.join(workspace, "phpunit-junit.xml");
 
-    // Check if command already has --log-junit
     const existingJunitPath = builder.extractJUnitPath(inputs.command);
     const localJunitPath = existingJunitPath || defaultLocalJunitPath;
 
@@ -53,12 +51,10 @@ export async function run(): Promise<void> {
       core.startGroup(`Attempt ${attempt}`);
 
       try {
-        // Delete stale JUnit file to avoid parsing old results
         if (!existingJunitPath && fs.existsSync(localJunitPath)) {
           fs.unlinkSync(localJunitPath);
         }
 
-        // Build command
         let command = inputs.command;
 
         if (attempt === 1) {
@@ -74,7 +70,6 @@ export async function run(): Promise<void> {
             const filterPattern = resolver.buildFilterPattern(failedTests);
             const testsToRun = filterPattern.split("|").length;
 
-            // Show dependency tree before retry
             const tree = resolver.buildDependencyTree(failedTests);
             if (tree) {
               core.info("Dependency analysis:");
@@ -90,14 +85,12 @@ export async function run(): Promise<void> {
           }
         }
 
-        // Add retry attempt environment variable
         command = builder.addEnvVar(
           command,
           "PHPUNIT_RETRY_ATTEMPT",
           attempt.toString(),
         );
 
-        // Execute command using platform-appropriate shell
         const executable = getExecutable(inputs.shell);
         core.debug(`Executing command with shell: ${executable}`);
 
@@ -120,7 +113,6 @@ export async function run(): Promise<void> {
                 }, inputs.timeoutMinutes * 60 * 1000)
               : null;
 
-          // Handle spawn errors (e.g., shell not found)
           child.on("error", (error) => {
             if (timeout) clearTimeout(timeout);
             reject(
@@ -130,7 +122,6 @@ export async function run(): Promise<void> {
             );
           });
 
-          // Stream output preserving ANSI colors
           child.stdout?.on("data", (data) => {
             process.stdout.write(data);
           });
@@ -139,7 +130,6 @@ export async function run(): Promise<void> {
             process.stdout.write(data);
           });
 
-          // Capture exit code but don't resolve yet
           child.on("exit", (code) => {
             exitCode = code || 0;
           });
@@ -162,7 +152,6 @@ export async function run(): Promise<void> {
 
         core.debug(`Command exited with code: ${exitCode}`);
 
-        // Extract JUnit XML from container (only for Docker commands)
         if (
           command.includes("docker exec") ||
           command.includes("docker compose exec") ||
@@ -199,13 +188,11 @@ export async function run(): Promise<void> {
           }
         }
 
-        // Check if tests passed
         if (exitCode === 0) {
           failedTests = [];
           break;
         }
 
-        // Parse failures from JUnit XML
         if (!fs.existsSync(localJunitPath)) {
           core.warning("JUnit XML not found, cannot parse failures");
           break;
@@ -218,14 +205,11 @@ export async function run(): Promise<void> {
           break;
         }
 
-        // Parse dependencies on first failure to build the map
         if (attempt === 1) {
-          // Get unique test files (multiple failed tests may be in same file)
           const uniqueFiles = new Set(failedTests.map((t) => t.file));
           const parsedFiles = new Set<string>();
 
           for (const test of failedTests) {
-            // Skip if we already parsed this file
             if (parsedFiles.has(test.file)) {
               continue;
             }
@@ -257,16 +241,13 @@ export async function run(): Promise<void> {
           }
         }
 
-        // Stop if no more retries
         if (attempt >= inputs.maxAttempts) {
           break;
         }
 
-        // Wait before retry
         core.info(`Waiting ${inputs.retryWaitSeconds}s before retry...`);
         await wait(inputs.retryWaitSeconds * 1000);
       } catch (attemptError) {
-        // Re-throw to be caught by outer try-catch
         throw attemptError;
       } finally {
         core.endGroup();
@@ -275,12 +256,10 @@ export async function run(): Promise<void> {
       attempt++;
     }
 
-    // Print completion message
     if (exitCode === 0) {
       core.info(`Command completed after ${attempt} attempt(s).`);
     }
 
-    // Set outputs
     core.setOutput("total_attempts", attempt);
     core.setOutput("exit_code", exitCode);
     core.setOutput(
@@ -298,5 +277,4 @@ export async function run(): Promise<void> {
   }
 }
 
-// Auto-run when executed
 run();

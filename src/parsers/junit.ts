@@ -13,7 +13,6 @@ export class JUnitParser {
 
     const failures: FailedTest[] = [];
 
-    // Handle <testsuites> root or <testsuite> root
     let testsuites: any[] = [];
 
     if (result.testsuites) {
@@ -30,7 +29,6 @@ export class JUnitParser {
   }
 
   private extractFailuresFromSuite(suite: any, failures: FailedTest[]): void {
-    // Handle nested testsuites (PHPUnit can nest them)
     if (suite?.testsuite) {
       const nestedSuites = this.ensureArray(suite.testsuite);
       for (const nestedSuite of nestedSuites) {
@@ -38,19 +36,16 @@ export class JUnitParser {
       }
     }
 
-    // Extract testcases from this suite
     const testcases = this.ensureArray(suite?.testcase);
 
     for (const testcase of testcases) {
-      // Check if test failed or errored
       if (testcase.failure || testcase.error) {
         const fullName = testcase["@_class"];
         const methodName = testcase["@_name"];
         const file = testcase["@_file"];
 
-        // Validate required fields
         if (!fullName || !methodName || !file) {
-          continue; // Skip malformed test case
+          continue;
         }
 
         const className = fullName.split("\\").pop() || fullName;

@@ -26,7 +26,7 @@ export class CommandBuilder {
   }
 
   addFilter(command: string, filterPattern: string): string {
-    // Escape for both PHPUnit regex and bash shell (4 backslashes total)
+    // 4 backslashes needed: 2 for bash escaping, 2 for PHPUnit regex escaping
     const escaped = filterPattern
       .replace(/\\/g, "\\\\\\\\")
       .replace(/"/g, '\\"');
@@ -35,15 +35,12 @@ export class CommandBuilder {
 
   addEnvVar(command: string, name: string, value: string): string {
     if (!this.isDockerCommand(command)) {
-      // For non-docker commands, env vars are passed via exec options
       return command;
     }
 
-    // For docker commands, inject -e flag after exec and before container name
     const tokens = command.trim().split(/\s+/);
     let insertIdx = 0;
 
-    // Find the position after 'exec' flags and before container name
     if (tokens[0] === "docker" && tokens[1] === "exec") {
       insertIdx = 2;
     } else if (
@@ -58,7 +55,6 @@ export class CommandBuilder {
       return command;
     }
 
-    // Skip existing flags to find where to insert
     const flagsWithArgs = new Set([
       "-u",
       "--user",
@@ -71,13 +67,12 @@ export class CommandBuilder {
     while (insertIdx < tokens.length && tokens[insertIdx]!.startsWith("-")) {
       const token = tokens[insertIdx]!;
       if (flagsWithArgs.has(token) && !token.includes("=")) {
-        insertIdx += 2; // Skip flag and its argument
+        insertIdx += 2;
       } else {
-        insertIdx += 1; // Skip flag-only
+        insertIdx += 1;
       }
     }
 
-    // Insert the env var before the container name
     tokens.splice(insertIdx, 0, "-e", `${name}=${value}`);
     return tokens.join(" ");
   }

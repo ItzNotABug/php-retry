@@ -8,9 +8,9 @@ export interface ActionInputs {
 }
 
 export interface FailedTest {
-  name: string; // Full name: "Tests\\E2E\\...::testFoo"
-  class: string; // Class name: "ProjectsConsoleClientTest"
-  method: string; // Method name: "testFoo"
-  file: string; // Container path: "/usr/src/code/vendor/..."
-  line?: number; // Line number
+  name: string; // "Tests\\E2E\\...::testFoo"
+  class: string; // "ProjectsConsoleClientTest"
+  method: string; // "testFoo"
+  file: string; // "/usr/src/code/vendor/..."
+  line?: number;
 }

@@ -7,17 +7,14 @@ export class DependencyResolver {
   parseTestFile(filePath: string): void {
     const content = fs.readFileSync(filePath, "utf-8");
 
-    // Extract namespace + class name
     const namespaceMatch = content.match(/namespace\s+([\w\\]+)/);
     const namespace = namespaceMatch ? namespaceMatch[1] + "\\" : "";
 
-    // Extract class name (handles abstract, final, and regular classes)
     const classMatch = content.match(/(?:abstract\s+|final\s+)?class\s+(\w+)/);
     if (!classMatch) return;
     const className = classMatch[1]!;
     const fullClassName = namespace + className;
 
-    // Regex to find test methods with their docblocks
     const methodRegex = /\/\*\*([\s\S]*?)\*\/\s*public\s+function\s+(test\w+)/g;
 
     let match;
@@ -27,7 +24,6 @@ export class DependencyResolver {
 
       if (!docblock || !methodName) continue;
 
-      // Extract @depends annotations
       const dependsRegex = /@depends\s+(\w+(?:::\w+)?)/g;
       const dependencies: string[] = [];
 
@@ -36,12 +32,9 @@ export class DependencyResolver {
         const dep = depMatch[1];
         if (!dep) continue;
 
-        // Handle both same-class (@depends testMethodName) and cross-class (@depends ClassName::testMethod)
         if (dep.includes("::")) {
-          // Cross-class dependency (ClassName::testMethod)
           dependencies.push(dep);
         } else {
-          // Same-class dependency - prefix with current class
           dependencies.push(`${fullClassName}::${dep}`);
         }
       }
@@ -53,7 +46,6 @@ export class DependencyResolver {
     }
   }
 
-  // Recursively resolve all dependencies for a test method
   private resolveDependencies(
     methodName: string,
     visited = new Set<string>(),
@@ -77,14 +69,12 @@ export class DependencyResolver {
     return result;
   }
 
-  // Build dependency tree visualization
   buildDependencyTree(failedTests: FailedTest[]): string {
     const lines: string[] = [];
 
     for (const test of failedTests) {
       const chain = this.buildDependencyChain(test.name);
       if (chain.length > 1) {
-        // Has dependencies - show chain
         for (let i = 0; i < chain.length; i++) {
           const indent = "  ".repeat(i);
           const connector = i === 0 ? "" : "└─> ";
@@ -93,7 +83,6 @@ export class DependencyResolver {
           lines.push(`${indent}${connector}${label}`);
         }
       } else {
-        // No dependencies - show standalone
         lines.push(`  ${test.name} (FAILED)`);
       }
     }
@@ -101,7 +90,6 @@ export class DependencyResolver {
     return lines.join("\n");
   }
 
-  // Build dependency chain from root to target test
   private buildDependencyChain(methodName: string): string[] {
     const chain: string[] = [];
     const visited = new Set<string>();
@@ -110,7 +98,6 @@ export class DependencyResolver {
       if (visited.has(current)) return false;
       visited.add(current);
 
-      // Find what depends on this method
       for (const [test, deps] of this.dependencyMap.entries()) {
         if (deps.includes(current)) {
           if (buildChain(test)) {
@@ -120,7 +107,6 @@ export class DependencyResolver {
         }
       }
 
-      // Base case: this is a root test
       if (current === methodName) {
         chain.push(current);
         return true;
@@ -129,24 +115,19 @@ export class DependencyResolver {
       return false;
     };
 
-    // Start from the target test and work backwards
     const deps = this.dependencyMap.get(methodName) || [];
     if (deps.length > 0) {
-      // This test has dependencies - find the chain
       const rootDeps = this.findRootDependencies(methodName, new Set());
       if (rootDeps.size > 0) {
-        // Build chain from first root
         const root = Array.from(rootDeps)[0]!;
         const fullChain = this.buildChainFromRoot(root, methodName);
         return fullChain;
       }
     }
 
-    // No dependencies - return just the method
     return [methodName];
   }
 
-  // Find root dependencies (methods with no @depends)
   private findRootDependencies(
     methodName: string,
     visited: Set<string>,
@@ -168,7 +149,6 @@ export class DependencyResolver {
     return roots;
   }
 
-  // Build chain from root to target
   private buildChainFromRoot(root: string, target: string): string[] {
     if (root === target) return [root];
 
@@ -182,7 +162,6 @@ export class DependencyResolver {
       if (visited.has(current)) continue;
       visited.add(current);
 
-      // Find tests that depend on current
       for (const [test, deps] of this.dependencyMap.entries()) {
         if (deps.includes(current)) {
           const newPath = [...path, test];
@@ -197,22 +176,17 @@ export class DependencyResolver {
     return [root];
   }
 
-  // Build --filter pattern from failed tests
   buildFilterPattern(failedTests: FailedTest[]): string {
     const allTests = new Set<string>();
 
     for (const test of failedTests) {
-      // Use full name (Class::method) as key
-      const key = test.name; // Already in format "Class::method"
+      const key = test.name;
       const deps = this.resolveDependencies(key);
       deps.forEach((fullName) => {
-        // Use full Class::method to avoid cross-class collisions
-        // PHPUnit --filter accepts this format as regex
         allTests.add(fullName);
       });
     }
 
-    // Join with pipe for PHPUnit --filter regex
     return Array.from(allTests).join("|");
   }
 }

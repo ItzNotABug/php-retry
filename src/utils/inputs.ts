@@ -6,9 +6,8 @@ function getInputNumber(
   required: boolean,
   defaultValue?: number,
 ): number | undefined {
-  const input = core.getInput(id, { required });
+  const input = core.getInput(id, { required }).trim();
 
-  // Empty is ok if not required
   if (!input && !required) {
     return defaultValue;
   }
@@ -47,7 +46,6 @@ export function getInputs(): ActionInputs {
   const retryWaitSeconds = getInputNumber("retry_wait_seconds", false, 10)!;
   const timeoutMinutes = getInputNumber("timeout_minutes", false, 30)!;
 
-  // Validate ranges
   validateRange("max_attempts", maxAttempts, 1, 10);
   validateRange("retry_wait_seconds", retryWaitSeconds, 0);
   validateRange("timeout_minutes", timeoutMinutes, 0); // 0 = no timeout
