@@ -50,7 +50,7 @@ export async function run(): Promise<void> {
     }
 
     while (attempt <= inputs.maxAttempts) {
-      core.startGroup(`Attempt ${attempt}/${inputs.maxAttempts}`);
+      core.info(`::group::Attempt ${attempt}`);
 
       try {
         // Delete stale JUnit file to avoid parsing old results
@@ -63,34 +63,30 @@ export async function run(): Promise<void> {
 
         if (attempt === 1) {
           command = builder.addJUnitLogging(command, defaultLocalJunitPath);
-          core.info(`Running all tests`);
         } else {
           // If dependencies couldn't be parsed, run full suite as fallback
           if (!dependenciesParsed) {
-            core.info(
-              `Retrying all tests (could not parse dependencies on first attempt)`,
+            core.warning(
+              `Could not parse dependencies on first attempt - retrying all tests`,
             );
             command = builder.addJUnitLogging(command, defaultLocalJunitPath);
           } else {
             const filterPattern = resolver.buildFilterPattern(failedTests);
             const testsToRun = filterPattern.split("|").length;
+
+            // Show dependency tree before retry
+            const tree = resolver.buildDependencyTree(failedTests);
+            if (tree) {
+              core.info("Dependency analysis:");
+              core.info(tree);
+            }
+
             core.info(
               `Retrying ${failedTests.length} failed test(s) + dependencies (${testsToRun} total)`,
             );
             core.debug(`Filter pattern includes ${testsToRun} test(s)`);
             command = builder.addFilter(command, filterPattern);
             command = builder.addJUnitLogging(command, defaultLocalJunitPath);
-          }
-
-          // Show dependency tree on retries (before running tests)
-          if (dependenciesParsed) {
-            const tree = resolver.buildDependencyTree(failedTests);
-            if (tree) {
-              core.info("");
-              core.info("Dependency analysis:");
-              core.info(tree);
-              core.info("");
-            }
           }
         }
 
@@ -198,7 +194,6 @@ export async function run(): Promise<void> {
 
         // Check if tests passed
         if (exitCode === 0) {
-          core.info("All tests passed!");
           failedTests = [];
           break;
         }
@@ -263,11 +258,19 @@ export async function run(): Promise<void> {
         // Wait before retry
         core.info(`Waiting ${inputs.retryWaitSeconds}s before retry...`);
         await wait(inputs.retryWaitSeconds * 1000);
+      } catch (attemptError) {
+        // Re-throw to be caught by outer try-catch
+        throw attemptError;
       } finally {
-        core.endGroup();
+        core.info('::endgroup::');
       }
 
       attempt++;
+    }
+
+    // Print completion message
+    if (exitCode === 0) {
+      core.info(`Command completed after ${attempt} attempt(s).`);
     }
 
     // Set outputs
