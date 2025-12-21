@@ -104,6 +104,7 @@ export async function run(): Promise<void> {
         exitCode = await new Promise<number>((resolve, reject) => {
           const child = spawn(command, { shell: executable });
           let timedOut = false;
+          let exitCode: number | null = null;
 
           // Setup timeout if configured
           const timeout =
@@ -138,7 +139,13 @@ export async function run(): Promise<void> {
             process.stdout.write(data);
           });
 
+          // Capture exit code but don't resolve yet
           child.on("exit", (code) => {
+            exitCode = code || 0;
+          });
+
+          // Wait for 'close' event - this ensures all stdio streams are flushed
+          child.on("close", () => {
             if (timeout) clearTimeout(timeout);
 
             if (timedOut) {
@@ -148,7 +155,7 @@ export async function run(): Promise<void> {
                 ),
               );
             } else {
-              resolve(code || 0);
+              resolve(exitCode || 0);
             }
           });
         });
