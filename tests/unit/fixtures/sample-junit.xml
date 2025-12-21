@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuites>
+  <testsuite name="Tests\E2E\Services\Projects\ProjectsConsoleClientTest"
+             file="/usr/src/code/vendor/appwrite/server-ce/tests/e2e/Services/Projects/ProjectsConsoleClientTest.php"
+             tests="52"
+             assertions="1389"
+             failures="4"
+             errors="0"
+             skipped="1"
+             time="125.456">
+    <testcase name="testCreateProject"
+              class="Tests\E2E\Services\Projects\ProjectsConsoleClientTest"
+              classname="Tests\E2E\Services\Projects\ProjectsConsoleClientTest"
+              file="/usr/src/code/vendor/appwrite/server-ce/tests/e2e/Services/Projects/ProjectsConsoleClientTest.php"
+              line="100"
+              assertions="5"
+              time="1.234"/>
+    <testcase name="testListProjectsQuerySelect"
+              class="Tests\E2E\Services\Projects\ProjectsConsoleClientTest"
+              classname="Tests\E2E\Services\Projects\ProjectsConsoleClientTest"
+              file="/usr/src/code/vendor/appwrite/server-ce/tests/e2e/Services/Projects/ProjectsConsoleClientTest.php"
+              line="480"
+              assertions="10"
+              time="2.145">
+      <failure type="PHPUnit\Framework\ExpectationFailedException"
+               message="Failed asserting that 400 matches expected 200.">
+Failed asserting that 400 matches expected 200.
+
+/usr/src/code/vendor/appwrite/server-ce/tests/e2e/Services/Projects/ProjectsConsoleClientTest.php:480
+      </failure>
+    </testcase>
+    <testcase name="testUpdateProjectSMTP"
+              class="Tests\E2E\Services\Projects\ProjectsConsoleClientTest"
+              classname="Tests\E2E\Services\Projects\ProjectsConsoleClientTest"
+              file="/usr/src/code/vendor/appwrite/server-ce/tests/e2e/Services/Projects/ProjectsConsoleClientTest.php"
+              line="903"
+              assertions="8"
+              time="1.987">
+      <failure type="PHPUnit\Framework\ExpectationFailedException"
+               message="Failed asserting that 400 matches expected 200.">
+Failed asserting that 400 matches expected 200.
+
+/usr/src/code/vendor/appwrite/server-ce/tests/e2e/Services/Projects/ProjectsConsoleClientTest.php:903
+      </failure>
+    </testcase>
+    <testcase name="testValidateProjectKey"
+              class="Tests\E2E\Services\Projects\ProjectsConsoleClientTest"
+              classname="Tests\E2E\Services\Projects\ProjectsConsoleClientTest"
+              file="/usr/src/code/vendor/appwrite/server-ce/tests/e2e/Services/Projects/ProjectsConsoleClientTest.php"
+              line="3272"
+              assertions="3"
+              time="0.543">
+      <error type="Exception"
+             message="Division by zero">
+Exception: Division by zero
+
+/usr/src/code/vendor/appwrite/server-ce/tests/e2e/Services/Projects/ProjectsConsoleClientTest.php:3272
+      </error>
+    </testcase>
+    <testcase name="testSkippedTest"
+              class="Tests\E2E\Services\Projects\ProjectsConsoleClientTest"
+              classname="Tests\E2E\Services\Projects\ProjectsConsoleClientTest"
+              file="/usr/src/code/vendor/appwrite/server-ce/tests/e2e/Services/Projects/ProjectsConsoleClientTest.php"
+              line="4000"
+              assertions="0"
+              time="0.001">
+      <skipped message="Test was marked as skipped" />
+    </testcase>
+  </testsuite>
+</testsuites>

@@ -1,0 +1,44 @@
+name: 'PHPUnit Retry'
+description: 'Intelligently retry failed PHPUnit tests with @depends resolution'
+author: 'itznotabug'
+branding:
+  icon: 'repeat'
+  color: 'purple'
+
+inputs:
+  command:
+    description: 'PHPUnit command to execute'
+    required: true
+  max_attempts:
+    description: 'Maximum retry attempts'
+    required: false
+    default: '3'
+  retry_wait_seconds:
+    description: 'Seconds to wait between retries'
+    required: false
+    default: '10'
+  shell:
+    description: 'Shell to use for running commands (bash, sh, pwsh, python, cmd, powershell)'
+    required: false
+    default: 'bash'
+  timeout_minutes:
+    description: 'Timeout in minutes for each test attempt (0 = no timeout)'
+    required: false
+    default: '30'
+  test_dir:
+    description: 'Base directory for test files in workspace (e.g., "tests" or "vendor/appwrite/server-ce/tests")'
+    required: true
+
+outputs:
+  total_attempts:
+    description: 'Total number of attempts made'
+  exit_code:
+    description: 'Final exit code'
+  failed_tests:
+    description: 'JSON array of failed test names'
+  success:
+    description: 'Whether tests eventually passed (true/false)'
+
+runs:
+  using: 'node20'
+  main: 'dist/index.js'

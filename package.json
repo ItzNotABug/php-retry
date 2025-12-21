@@ -1,0 +1,28 @@
+{
+  "name": "phpunit-retry-action",
+  "version": "1.0.0",
+  "description": "Intelligently retry failed PHPUnit tests with @depends resolution",
+  "private": true,
+  "scripts": {
+    "build": "bun build ./src/index.ts --minify --target node --format cjs --outdir ./dist",
+    "typecheck": "tsc --noEmit",
+    "format": "prettier --write 'src/**/*.ts'",
+    "test": "bun test",
+    "test:unit": "bun test tests/unit/",
+    "test:integration": "bun run tests/test-integration.ts",
+    "all": "bun run format && bun run typecheck && bun run build"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "prettier": "^3.7.4"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  },
+  "dependencies": {
+    "@actions/core": "^2.0.1",
+    "@actions/exec": "^2.0.0",
+    "fast-xml-parser": "^5.3.3",
+    "tree-kill": "^1.2.2"
+  }
+}

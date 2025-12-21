@@ -1,0 +1,74 @@
+# Dependencies
+node_modules/
+
+# Reference code
+.source/
+
+# Build output
+out/
+dist/*.map
+*.tgz
+
+# Test artifacts
+phpunit-junit.xml
+*.junit.xml
+
+# Code coverage
+coverage/
+*.lcov
+.nyc_output/
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+.pnpm-debug.log*
+
+# Dotenv environment variable files
+.env
+.env.*
+!.env.example
+
+# Caches
+.eslintcache
+.cache/
+*.tsbuildinfo
+.turbo/
+
+# IDEs
+.idea/
+*.iml
+*.iws
+.vscode/
+*.swp
+*.swo
+*~
+.project
+.classpath
+.c9/
+*.launch
+.settings/
+*.sublime-workspace
+
+# OS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Optional npm cache directory
+.npm
+
+# Optional REPL history
+.node_repl_history
+
+# Temporary files
+tmp/
+temp/
+test-local.sh

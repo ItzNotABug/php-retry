@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="Tests\Unit\Services\Auth\AuthTest"
+           file="/app/tests/unit/Services/Auth/AuthTest.php"
+           tests="10"
+           assertions="25"
+           failures="2"
+           errors="0"
+           skipped="0"
+           time="3.456">
+  <testcase name="testLogin"
+            class="Tests\Unit\Services\Auth\AuthTest"
+            classname="Tests\Unit\Services\Auth\AuthTest"
+            file="/app/tests/unit/Services/Auth/AuthTest.php"
+            line="42"
+            assertions="4"
+            time="0.123"/>
+  <testcase name="testRegister"
+            class="Tests\Unit\Services\Auth\AuthTest"
+            classname="Tests\Unit\Services\Auth\AuthTest"
+            file="/app/tests/unit/Services/Auth/AuthTest.php"
+            line="78"
+            assertions="6"
+            time="0.234">
+    <failure type="PHPUnit\Framework\ExpectationFailedException"
+             message="Failed asserting that 'user@example.com' is a valid email.">
+Failed asserting that 'user@example.com' is a valid email.
+
+/app/tests/unit/Services/Auth/AuthTest.php:78
+    </failure>
+  </testcase>
+  <testcase name="testLogout"
+            class="Tests\Unit\Services\Auth\AuthTest"
+            classname="Tests\Unit\Services\Auth\AuthTest"
+            file="/app/tests/unit/Services/Auth/AuthTest.php"
+            line="112"
+            assertions="3"
+            time="0.089">
+    <failure type="PHPUnit\Framework\AssertionFailedException"
+             message="Session was not cleared after logout.">
+Session was not cleared after logout.
+
+/app/tests/unit/Services/Auth/AuthTest.php:112
+    </failure>
+  </testcase>
+</testsuite>
