@@ -1,14 +1,14 @@
-import * as fs from "fs";
-import type { FailedTest } from "../types.js";
+import * as fs from 'fs';
+import type { FailedTest } from '../types.js';
 
 export class DependencyResolver {
   private dependencyMap = new Map<string, string[]>();
 
   parseTestFile(filePath: string): void {
-    const content = fs.readFileSync(filePath, "utf-8");
+    const content = fs.readFileSync(filePath, 'utf-8');
 
     const namespaceMatch = content.match(/namespace\s+([\w\\]+)/);
-    const namespace = namespaceMatch ? namespaceMatch[1] + "\\" : "";
+    const namespace = namespaceMatch ? namespaceMatch[1] + '\\' : '';
 
     const classMatch = content.match(/(?:abstract\s+|final\s+)?class\s+(\w+)/);
     if (!classMatch) return;
@@ -32,7 +32,7 @@ export class DependencyResolver {
         const dep = depMatch[1];
         if (!dep) continue;
 
-        if (dep.includes("::")) {
+        if (dep.includes('::')) {
           dependencies.push(dep);
         } else {
           dependencies.push(`${fullClassName}::${dep}`);
@@ -76,8 +76,8 @@ export class DependencyResolver {
       const chain = this.buildDependencyChain(test.name);
       if (chain.length > 1) {
         for (let i = 0; i < chain.length; i++) {
-          const indent = "  ".repeat(i);
-          const connector = i === 0 ? "" : "└─> ";
+          const indent = '  '.repeat(i);
+          const connector = i === 0 ? '' : '└─> ';
           const label =
             i === chain.length - 1 ? `${chain[i]} (FAILED)` : chain[i]!;
           lines.push(`${indent}${connector}${label}`);
@@ -87,34 +87,10 @@ export class DependencyResolver {
       }
     }
 
-    return lines.join("\n");
+    return lines.join('\n');
   }
 
   private buildDependencyChain(methodName: string): string[] {
-    const chain: string[] = [];
-    const visited = new Set<string>();
-
-    const buildChain = (current: string): boolean => {
-      if (visited.has(current)) return false;
-      visited.add(current);
-
-      for (const [test, deps] of this.dependencyMap.entries()) {
-        if (deps.includes(current)) {
-          if (buildChain(test)) {
-            chain.unshift(current);
-            return true;
-          }
-        }
-      }
-
-      if (current === methodName) {
-        chain.push(current);
-        return true;
-      }
-
-      return false;
-    };
-
     const deps = this.dependencyMap.get(methodName) || [];
     if (deps.length > 0) {
       const rootDeps = this.findRootDependencies(methodName, new Set());
@@ -187,6 +163,6 @@ export class DependencyResolver {
       });
     }
 
-    return Array.from(allTests).join("|");
+    return Array.from(allTests).join('|');
   }
 }

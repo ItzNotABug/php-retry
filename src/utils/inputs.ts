@@ -1,5 +1,5 @@
-import * as core from "@actions/core";
-import type { ActionInputs } from "../types.js";
+import * as core from '@actions/core';
+import type { ActionInputs } from '../types.js';
 
 function getInputNumber(
   id: string,
@@ -38,17 +38,17 @@ function validateRange(
 }
 
 export function getInputs(): ActionInputs {
-  const command = core.getInput("command", { required: true });
-  const testDir = core.getInput("test_dir", { required: true });
-  const shell = core.getInput("shell") || "bash";
+  const command = core.getInput('command', { required: true });
+  const testDir = core.getInput('test_dir', { required: true });
+  const shell = core.getInput('shell') || 'bash';
 
-  const maxAttempts = getInputNumber("max_attempts", false, 3)!;
-  const retryWaitSeconds = getInputNumber("retry_wait_seconds", false, 10)!;
-  const timeoutMinutes = getInputNumber("timeout_minutes", false, 30)!;
+  const maxAttempts = getInputNumber('max_attempts', false, 3)!;
+  const retryWaitSeconds = getInputNumber('retry_wait_seconds', false, 10)!;
+  const timeoutMinutes = getInputNumber('timeout_minutes', false, 30)!;
 
-  validateRange("max_attempts", maxAttempts, 1, 10);
-  validateRange("retry_wait_seconds", retryWaitSeconds, 0);
-  validateRange("timeout_minutes", timeoutMinutes, 0); // 0 = no timeout
+  validateRange('max_attempts', maxAttempts, 1, 10);
+  validateRange('retry_wait_seconds', retryWaitSeconds, 0);
+  validateRange('timeout_minutes', timeoutMinutes, 0); // 0 = no timeout
 
   return {
     command,

@@ -1,19 +1,19 @@
-import * as core from "@actions/core";
-import { spawn } from "child_process";
-import * as fs from "fs";
-import * as path from "path";
-import kill from "tree-kill";
-import { getInputs } from "./utils/inputs.js";
-import { JUnitParser } from "./parsers/junit.js";
-import { DependencyResolver } from "./parsers/dependency.js";
-import { CommandBuilder } from "./builders/command.js";
+import * as core from '@actions/core';
+import { spawn } from 'child_process';
+import * as fs from 'fs';
+import * as path from 'path';
+import kill from 'tree-kill';
+import { getInputs } from './utils/inputs.js';
+import { JUnitParser } from './parsers/junit.js';
+import { DependencyResolver } from './parsers/dependency.js';
+import { CommandBuilder } from './builders/command.js';
 import {
   wait,
   findTestFileInWorkspace,
   validatePlatform,
-} from "./utils/helpers.js";
-import { getExecutable } from "./utils/shell.js";
-import type { FailedTest } from "./types.js";
+} from './utils/helpers.js';
+import { getExecutable } from './utils/shell.js';
+import type { FailedTest } from './types.js';
 
 export async function run(): Promise<void> {
   try {
@@ -32,11 +32,16 @@ export async function run(): Promise<void> {
     let exitCode = 0;
     let failedTests: FailedTest[] = [];
     let dependenciesParsed = false;
+    let firstAttemptStats: {
+      total: number;
+      failures: number;
+      assertions: number;
+    } | null = null;
 
     // Use absolute path for JUnit XML to handle commands that change directories
     // Falls back to current directory if GITHUB_WORKSPACE is not set (for local testing)
     const workspace = process.env.GITHUB_WORKSPACE || process.cwd();
-    const defaultLocalJunitPath = path.join(workspace, "phpunit-junit.xml");
+    const defaultLocalJunitPath = path.join(workspace, 'phpunit-junit.xml');
 
     const existingJunitPath = builder.extractJUnitPath(inputs.command);
     const localJunitPath = existingJunitPath || defaultLocalJunitPath;
@@ -68,12 +73,13 @@ export async function run(): Promise<void> {
             command = builder.addJUnitLogging(command, defaultLocalJunitPath);
           } else {
             const filterPattern = resolver.buildFilterPattern(failedTests);
-            const testsToRun = filterPattern.split("|").length;
+            const testsToRun = filterPattern.split('|').length;
 
             const tree = resolver.buildDependencyTree(failedTests);
             if (tree) {
-              core.info("Dependency analysis:");
+              core.info('Dependency analysis:');
               core.info(tree);
+              core.info('');
             }
 
             core.info(
@@ -87,7 +93,7 @@ export async function run(): Promise<void> {
 
         command = builder.addEnvVar(
           command,
-          "PHPUNIT_RETRY_ATTEMPT",
+          'PHPUNIT_RETRY_ATTEMPT',
           attempt.toString(),
         );
 
@@ -99,21 +105,23 @@ export async function run(): Promise<void> {
           let timedOut = false;
           let exitCode: number | null = null;
 
+          const handleTimeout = () => {
+            timedOut = true;
+            if (child.pid) {
+              core.warning(
+                `Command exceeded timeout of ${inputs.timeoutMinutes} minute(s), killing process tree ${child.pid}`,
+              );
+              kill(child.pid, 'SIGTERM');
+            }
+          };
+
           // Setup timeout if configured
           const timeout =
             inputs.timeoutMinutes > 0
-              ? setTimeout(() => {
-                  timedOut = true;
-                  if (child.pid) {
-                    core.warning(
-                      `Command exceeded timeout of ${inputs.timeoutMinutes} minute(s), killing process tree ${child.pid}`,
-                    );
-                    kill(child.pid, "SIGTERM");
-                  }
-                }, inputs.timeoutMinutes * 60 * 1000)
+              ? setTimeout(handleTimeout, inputs.timeoutMinutes * 60 * 1000)
               : null;
 
-          child.on("error", (error) => {
+          child.on('error', (error) => {
             if (timeout) clearTimeout(timeout);
             reject(
               new Error(
@@ -122,20 +130,20 @@ export async function run(): Promise<void> {
             );
           });
 
-          child.stdout?.on("data", (data) => {
+          child.stdout?.on('data', (data) => {
             process.stdout.write(data);
           });
 
-          child.stderr?.on("data", (data) => {
+          child.stderr?.on('data', (data) => {
             process.stdout.write(data);
           });
 
-          child.on("exit", (code) => {
+          child.on('exit', (code) => {
             exitCode = code || 0;
           });
 
           // Wait for 'close' event - this ensures all stdio streams are flushed
-          child.on("close", () => {
+          child.on('close', () => {
             if (timeout) clearTimeout(timeout);
 
             if (timedOut) {
@@ -153,9 +161,9 @@ export async function run(): Promise<void> {
         core.debug(`Command exited with code: ${exitCode}`);
 
         if (
-          command.includes("docker exec") ||
-          command.includes("docker compose exec") ||
-          command.includes("docker-compose exec")
+          command.includes('docker exec') ||
+          command.includes('docker compose exec') ||
+          command.includes('docker-compose exec')
         ) {
           const containerJunitPath = existingJunitPath || undefined;
           const extractCmd = builder.buildExtractCommand(
@@ -165,16 +173,16 @@ export async function run(): Promise<void> {
           );
           if (extractCmd) {
             await new Promise<void>((resolve) => {
-              const extractChild = spawn(extractCmd, { shell: executable });
+              const extractChild = spawn(extractCmd, {
+                shell: executable,
+              });
 
-              extractChild.on("error", (error) => {
-                core.warning(
-                  `Failed to extract JUnit XML: ${error.message}`,
-                );
+              extractChild.on('error', (error) => {
+                core.warning(`Failed to extract JUnit XML: ${error.message}`);
                 resolve(); // Don't fail the entire action
               });
 
-              extractChild.on("exit", (code) => {
+              extractChild.on('exit', (code) => {
                 if (code && code !== 0) {
                   core.warning(`Docker extraction exited with code ${code}`);
                 }
@@ -183,7 +191,7 @@ export async function run(): Promise<void> {
             });
           } else {
             core.warning(
-              "Could not extract container name from command, JUnit XML extraction skipped",
+              'Could not extract container name from command, JUnit XML extraction skipped',
             );
           }
         }
@@ -194,14 +202,18 @@ export async function run(): Promise<void> {
         }
 
         if (!fs.existsSync(localJunitPath)) {
-          core.warning("JUnit XML not found, cannot parse failures");
+          core.warning('JUnit XML not found, cannot parse failures');
           break;
         }
 
         failedTests = parser.parseXMLFile(localJunitPath);
 
+        if (attempt === 1) {
+          firstAttemptStats = parser.getTestStats(localJunitPath);
+        }
+
         if (failedTests.length === 0) {
-          core.warning("Tests failed but no specific failures in JUnit XML");
+          core.warning('Tests failed but no specific failures in JUnit XML');
           break;
         }
 
@@ -236,7 +248,7 @@ export async function run(): Promise<void> {
             );
           } else {
             core.debug(
-              "All test files found. Will use dependency filtering on retry.",
+              'All test files found. Will use dependency filtering on retry.',
             );
           }
         }
@@ -245,6 +257,7 @@ export async function run(): Promise<void> {
           break;
         }
 
+        core.info('');
         core.info(`Waiting ${inputs.retryWaitSeconds}s before retry...`);
         await wait(inputs.retryWaitSeconds * 1000);
       } catch (attemptError) {
@@ -257,16 +270,44 @@ export async function run(): Promise<void> {
     }
 
     if (exitCode === 0) {
-      core.info(`Command completed after ${attempt} attempt(s).`);
+      core.info('');
+      core.info('='.repeat(60));
+      if (firstAttemptStats) {
+        const passed = firstAttemptStats.total - firstAttemptStats.failures;
+        core.info(
+          `Total: ${firstAttemptStats.total} tests - ${firstAttemptStats.failures} failed, ${passed} passed`,
+        );
+        if (attempt > 1) {
+          const retriedWithDeps = dependenciesParsed
+            ? `${failedTests.length} failed test(s) + dependencies`
+            : 'full test suite';
+          core.info(`Retried: ${retriedWithDeps}`);
+        }
+      }
+      core.info(`✓ All tests passed after ${attempt} attempt(s)`);
+      core.info('='.repeat(60));
+    } else {
+      core.info('');
+      core.info('='.repeat(60));
+      if (firstAttemptStats) {
+        const passed = firstAttemptStats.total - firstAttemptStats.failures;
+        core.info(
+          `Total: ${firstAttemptStats.total} tests - ${firstAttemptStats.failures} failed, ${passed} passed`,
+        );
+      }
+      core.info(
+        `✗ ${failedTests.length} test(s) still failing after ${attempt} attempt(s)`,
+      );
+      core.info('='.repeat(60));
     }
 
-    core.setOutput("total_attempts", attempt);
-    core.setOutput("exit_code", exitCode);
+    core.setOutput('total_attempts', attempt);
+    core.setOutput('exit_code', exitCode);
     core.setOutput(
-      "failed_tests",
+      'failed_tests',
       JSON.stringify(failedTests.map((t) => t.name)),
     );
-    core.setOutput("success", exitCode === 0 ? "true" : "false");
+    core.setOutput('success', exitCode === 0 ? 'true' : 'false');
 
     if (exitCode !== 0) {
       core.setFailed(`Tests failed after ${attempt} attempt(s)`);

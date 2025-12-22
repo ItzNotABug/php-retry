@@ -3,6 +3,10 @@
   "version": "1.0.0",
   "description": "Intelligently retry failed PHPUnit tests with @depends resolution",
   "private": true,
+  "prettier": {
+    "tabWidth": 2,
+    "singleQuote": true
+  },
   "scripts": {
     "build": "bun build ./src/index.ts --minify --target node --format cjs --outdir ./dist",
     "typecheck": "tsc --noEmit",
@@ -10,7 +14,7 @@
     "test": "bun test",
     "test:unit": "bun test tests/unit/",
     "test:integration": "bun run tests/test-integration.ts",
-    "all": "bun run format && bun run typecheck && bun run build"
+    "check": "bun run format && bun run typecheck && bun run build"
   },
   "devDependencies": {
     "@types/bun": "latest",

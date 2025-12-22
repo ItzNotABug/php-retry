@@ -1,6 +1,6 @@
-import * as core from "@actions/core";
-import * as path from "path";
-import * as fs from "fs";
+import * as core from '@actions/core';
+import * as path from 'path';
+import * as fs from 'fs';
 
 export async function wait(ms: number): Promise<void> {
   const waitStart = Date.now();
@@ -45,7 +45,9 @@ export function findTestFileInWorkspace(
     }
   }
 
-  core.debug(`Could not find file using relative path, searching by filename: ${filename}`);
+  core.debug(
+    `Could not find file using relative path, searching by filename: ${filename}`,
+  );
   const matches: string[] = [];
 
   function searchDir(dir: string): void {
@@ -62,7 +64,7 @@ export function findTestFileInWorkspace(
     for (const entry of entries) {
       const fullPath = path.join(dir, entry.name);
 
-      if (entry.name === "node_modules" || entry.name === ".git") {
+      if (entry.name === 'node_modules' || entry.name === '.git') {
         continue;
       }
 
