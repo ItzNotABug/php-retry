@@ -28,7 +28,7 @@ export function findTestFileInWorkspace(
   // e.g., /usr/src/code/tests/e2e/ProjectsTest.php -> e2e/ProjectsTest.php
   let relativePath: string | null = null;
 
-  const testDirMarkers = ['tests/', 'test/', testDir + '/'];
+  const testDirMarkers = [testDir + '/', 'tests/', 'test/'];
   for (const marker of testDirMarkers) {
     const idx = containerPath.indexOf(marker);
     if (idx !== -1) {
