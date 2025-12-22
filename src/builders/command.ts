@@ -91,15 +91,29 @@ export class CommandBuilder {
 
     let idx = 0;
 
-    if (tokens[idx] === 'docker' && tokens[idx + 1] === 'exec') {
+    // Skip environment variables (KEY=value format) at the start
+    while (idx < tokens.length && tokens[idx]!.includes('=')) {
+      idx++;
+    }
+
+    if (
+      idx < tokens.length &&
+      tokens[idx] === 'docker' &&
+      tokens[idx + 1] === 'exec'
+    ) {
       idx += 2;
     } else if (
+      idx + 2 < tokens.length &&
       tokens[idx] === 'docker' &&
       tokens[idx + 1] === 'compose' &&
       tokens[idx + 2] === 'exec'
     ) {
       idx += 3;
-    } else if (tokens[idx] === 'docker-compose' && tokens[idx + 1] === 'exec') {
+    } else if (
+      idx + 1 < tokens.length &&
+      tokens[idx] === 'docker-compose' &&
+      tokens[idx + 1] === 'exec'
+    ) {
       idx += 2;
     } else {
       return null;

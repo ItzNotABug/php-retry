@@ -108,6 +108,38 @@ describe("CommandBuilder", () => {
 
       expect(result).toBeNull();
     });
+
+    test("should extract from command with single environment variable", () => {
+      const command =
+        "_APP_VAR=value docker compose exec -T appwrite test /usr/src/code/tests";
+      const result = builder.extractContainerName(command);
+
+      expect(result).toBe("appwrite");
+    });
+
+    test("should extract from command with multiple environment variables", () => {
+      const command =
+        "_APP_DATABASE_SHARED_TABLES=db1 _APP_DATABASE_SHARED_TABLES_V1=db2 docker compose exec -T appwrite ce-test /usr/src/code/tests";
+      const result = builder.extractContainerName(command);
+
+      expect(result).toBe("appwrite");
+    });
+
+    test("should extract from docker exec with environment variables", () => {
+      const command =
+        "_DATABASE_CONFIG=shared_tables docker exec my-container vendor/bin/phpunit tests/";
+      const result = builder.extractContainerName(command);
+
+      expect(result).toBe("my-container");
+    });
+
+    test("should extract from docker-compose exec with environment variables", () => {
+      const command =
+        "_APP_VAR=value docker-compose exec -T appwrite test /usr/src/code/tests";
+      const result = builder.extractContainerName(command);
+
+      expect(result).toBe("appwrite");
+    });
   });
 
   describe("buildExtractCommand", () => {

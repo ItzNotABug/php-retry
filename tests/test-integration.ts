@@ -12,10 +12,14 @@ async function runIntegrationTests() {
   console.log("Running integration test with act (matrix workflow)...\n");
 
   try {
-    const result =
+    // Run both jobs and combine output
+    const result1 =
       await $`act -j test-action -W .github/workflows/test-local.yml -P ubuntu-latest=catthehacker/ubuntu:act-latest --container-architecture linux/amd64`.nothrow();
 
-    const output = result.text();
+    const result2 =
+      await $`act -j test-action-with-env -W .github/workflows/test-local.yml -P ubuntu-latest=catthehacker/ubuntu:act-latest --container-architecture linux/amd64`.nothrow();
+
+    const output = result1.text() + "\n" + result2.text();
 
     // Verify expected behavior across all matrix jobs
     const checks = [
@@ -28,20 +32,32 @@ async function runIntegrationTests() {
         name: "Complex Dependencies matrix job runs",
       },
       {
+        pattern: /scenario:Vendor Path Tests/,
+        name: "Vendor Path Tests matrix job runs",
+      },
+      {
         pattern: /scenario:Full Test Suite/,
         name: "Full Test Suite matrix job runs",
+      },
+      {
+        pattern: /Test Action with Environment Variables/,
+        name: "Environment variables job runs",
+      },
+      {
+        pattern: /Test action with env vars and vendor path/,
+        name: "Environment variables with vendor path runs",
       },
       {
         pattern: /Attempt 1/,
         name: "First attempt runs",
       },
       {
-        pattern: /phpunit-retry-simple|phpunit-retry-complex|phpunit-retry-full/,
+        pattern: /phpunit-retry-simple|phpunit-retry-complex|phpunit-retry-vendor|phpunit-retry-full|phpunit-retry-env/,
         name: "Docker containers are created",
       },
       {
-        pattern: /SampleTest|ProjectTest/,
-        name: "Tests are executed",
+        pattern: /SampleTest|ProjectTest|VendorTest/,
+        name: "Tests are executed (including vendor paths)",
       },
       {
         pattern: /Dependency analysis:/,

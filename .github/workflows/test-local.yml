@@ -34,13 +34,21 @@ jobs:
           - scenario: "Simple Dependencies"
             test_path: "tests/SampleTest.php"
             container_id: "simple"
+            test_dir: "tests/integration/phpunit-project/tests"
 
           - scenario: "Complex Dependencies"
             test_path: "tests/ProjectTest.php"
             container_id: "complex"
+            test_dir: "tests/integration/phpunit-project/tests"
+
+          - scenario: "Vendor Path Tests"
+            test_path: "vendor/sample/library/tests/VendorTest.php"
+            container_id: "vendor"
+            test_dir: "tests/integration/phpunit-project/vendor/sample/library/tests"
 
           - scenario: "Full Test Suite"
             container_id: "full"
+            test_dir: "tests/integration/phpunit-project"
     steps:
       - uses: actions/checkout@v4
 
@@ -56,7 +64,7 @@ jobs:
         uses: ./
         with:
           command: docker exec phpunit-retry-${{ matrix.container_id }} vendor/bin/phpunit ${{ matrix.test_path || '' }}
-          test_dir: tests/integration/phpunit-project/tests
+          test_dir: ${{ matrix.test_dir }}
           max_attempts: 3
           retry_wait_seconds: 5
         continue-on-error: true
@@ -68,6 +76,52 @@ jobs:
       - name: Verify action executed
         run: |
           echo "Action completed with outcome: ${{ steps.test-retry.outcome }}"
+
+  test-action-with-env:
+    name: Test Action with Environment Variables
+    runs-on: ubuntu-latest
+    needs: unit-tests
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build Docker image
+        working-directory: tests/integration/phpunit-project
+        run: docker build -t phpunit-retry-test:latest .
+
+      - name: Start container
+        run: docker run -d --name phpunit-retry-env phpunit-retry-test:latest tail -f /dev/null
+
+      - name: Test action with env vars in command
+        id: test-retry
+        uses: ./
+        with:
+          command: _DATABASE_CONFIG=shared_tables _STORAGE_PATH=/tmp/storage docker exec phpunit-retry-env vendor/bin/phpunit tests/SampleTest.php
+          test_dir: tests/integration/phpunit-project/tests
+          max_attempts: 3
+          retry_wait_seconds: 5
+        continue-on-error: true
+
+      - name: Verify action executed
+        run: |
+          echo "Action completed with outcome: ${{ steps.test-retry.outcome }}"
+
+      - name: Test action with env vars and vendor path
+        id: test-retry-vendor
+        uses: ./
+        with:
+          command: _DATABASE_CONFIG=shared_tables _STORAGE_PATH=/tmp/storage docker exec phpunit-retry-env vendor/bin/phpunit vendor/sample/library/tests/VendorTest.php
+          test_dir: tests/integration/phpunit-project/vendor/sample/library/tests
+          max_attempts: 3
+          retry_wait_seconds: 5
+        continue-on-error: true
+
+      - name: Verify vendor test executed
+        run: |
+          echo "Vendor test completed with outcome: ${{ steps.test-retry-vendor.outcome }}"
+
+      - name: Cleanup
+        if: always()
+        run: docker rm -f phpunit-retry-env || true
 
   lint:
     name: Lint & Type Check
