@@ -1,3 +1,4 @@
+import "./test-helper";
 import { describe, test, expect, beforeEach, afterEach } from "bun:test";
 import { findTestFileInWorkspace } from "../../src/utils/helpers";
 import * as fs from "fs";
