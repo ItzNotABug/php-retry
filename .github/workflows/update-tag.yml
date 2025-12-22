@@ -9,6 +9,8 @@ jobs:
   update-tag:
     name: Update Latest Tag
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
