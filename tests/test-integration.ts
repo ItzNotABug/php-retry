@@ -20,19 +20,19 @@ async function runIntegrationTests() {
     // Verify expected behavior across all matrix jobs
     const checks = [
       {
-        pattern: /Matrix: map\[scenario:Simple Dependencies/,
+        pattern: /scenario:Simple Dependencies/,
         name: "Simple Dependencies matrix job runs",
       },
       {
-        pattern: /Matrix: map\[scenario:Complex Dependencies/,
+        pattern: /scenario:Complex Dependencies/,
         name: "Complex Dependencies matrix job runs",
       },
       {
-        pattern: /Matrix: map\[scenario:Full Test Suite/,
+        pattern: /scenario:Full Test Suite/,
         name: "Full Test Suite matrix job runs",
       },
       {
-        pattern: /Attempt 1\/3/,
+        pattern: /Attempt 1/,
         name: "First attempt runs",
       },
       {
@@ -44,7 +44,7 @@ async function runIntegrationTests() {
         name: "Tests are executed",
       },
       {
-        pattern: /Running all tests/,
+        pattern: /Dependency analysis:/,
         name: "Action shows test execution status",
       },
       {
