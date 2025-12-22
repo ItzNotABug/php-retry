@@ -1,13 +1,7 @@
+import { isDockerCommand, isDockerCompose } from '../utils/helpers.js';
+
 export class CommandBuilder {
   private readonly containerJunitPath = '/tmp/phpunit-junit.xml';
-
-  private isDockerCommand(command: string): boolean {
-    return (
-      command.includes('docker exec') ||
-      command.includes('docker compose exec') ||
-      command.includes('docker-compose exec')
-    );
-  }
 
   extractJUnitPath(command: string): string | null {
     const match = command.match(/--log-junit\s+(\S+)/);
@@ -19,7 +13,7 @@ export class CommandBuilder {
       return command;
     }
 
-    const junitPath = this.isDockerCommand(command)
+    const junitPath = isDockerCommand(command)
       ? this.containerJunitPath
       : localJunitPath;
     return `${command} --log-junit ${junitPath}`;
@@ -34,7 +28,7 @@ export class CommandBuilder {
   }
 
   addEnvVar(command: string, name: string, value: string): string {
-    if (!this.isDockerCommand(command)) {
+    if (!isDockerCommand(command)) {
       return command;
     }
 
@@ -148,10 +142,7 @@ export class CommandBuilder {
 
     const containerPath = customContainerPath || this.containerJunitPath;
 
-    if (
-      command.includes('docker compose exec') ||
-      command.includes('docker-compose exec')
-    ) {
+    if (isDockerCompose(command)) {
       const composeCmd = command.includes('docker-compose')
         ? 'docker-compose'
         : 'docker compose';
