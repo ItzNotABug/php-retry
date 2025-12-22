@@ -182,9 +182,17 @@ export async function run(): Promise<void> {
                 resolve(); // Don't fail the entire action
               });
 
+              let exitCode: number | null = null;
+
               extractChild.on('exit', (code) => {
-                if (code && code !== 0) {
-                  core.warning(`Docker extraction exited with code ${code}`);
+                exitCode = code;
+              });
+
+              extractChild.on('close', () => {
+                if (exitCode && exitCode !== 0) {
+                  core.warning(
+                    `Docker extraction exited with code ${exitCode}`,
+                  );
                 }
                 resolve();
               });
