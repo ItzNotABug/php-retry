@@ -6,8 +6,7 @@
   },
   "autoload": {
     "psr-4": {
-      "Tests\\": "tests/",
-      "Vendor\\Sample\\Tests\\": "vendor/sample/library/tests/"
+      "Tests\\": "tests/"
     }
   }
 }

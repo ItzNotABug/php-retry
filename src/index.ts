@@ -326,7 +326,8 @@ export async function run(): Promise<void> {
       core.info('');
       core.info('='.repeat(60));
       if (firstAttemptStats) {
-        core.info(`${firstAttemptStats.total} total tests`);
+        const totalStr = String(firstAttemptStats.total).padStart(2, '0');
+        core.info(`${totalStr} total tests`);
         for (let i = 0; i < attemptStats.length; i++) {
           const stat = attemptStats[i]!;
           const isLast = i === attemptStats.length - 1;
@@ -354,7 +355,8 @@ export async function run(): Promise<void> {
       core.info('');
       core.info('='.repeat(60));
       if (firstAttemptStats) {
-        core.info(`${firstAttemptStats.total} total tests`);
+        const totalStr = String(firstAttemptStats.total).padStart(2, '0');
+        core.info(`${totalStr} total tests`);
         for (let i = 0; i < attemptStats.length; i++) {
           const stat = attemptStats[i]!;
           const isLast = i === attemptStats.length - 1;
