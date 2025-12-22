@@ -200,6 +200,16 @@ describe("extractFileFromContainer", () => {
 
     expect(result).toBeNull();
   });
+
+  test("should prevent directory name prefix attacks", () => {
+    const result = extractFileFromContainer(
+      "/../phpunit-retry-wrong/invalid.php",
+      "test-container",
+      false
+    );
+
+    expect(result).toBeNull();
+  });
 });
 
 describe("cleanupExtractedFiles", () => {

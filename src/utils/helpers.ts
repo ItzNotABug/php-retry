@@ -48,7 +48,12 @@ export function extractFileFromContainer(
   // Validate path doesn't escape tmpBaseDir (prevent path traversal)
   const resolvedPath = path.resolve(localPath);
   const resolvedBaseDir = path.resolve(tmpBaseDir);
-  if (!resolvedPath.startsWith(resolvedBaseDir)) {
+  // Ensure path is inside tmpBaseDir
+  const normalizedBase = resolvedBaseDir + path.sep;
+  if (
+    resolvedPath !== resolvedBaseDir &&
+    !resolvedPath.startsWith(normalizedBase)
+  ) {
     core.warning(
       `Invalid container path ${containerPath} (would escape temp directory), skipping extraction`,
     );
