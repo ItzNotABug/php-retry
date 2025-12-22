@@ -101,13 +101,27 @@ jobs:
           retry_wait_seconds: 5
         continue-on-error: true
 
-      - name: Cleanup
-        if: always()
-        run: docker rm -f phpunit-retry-env || true
-
       - name: Verify action executed
         run: |
           echo "Action completed with outcome: ${{ steps.test-retry.outcome }}"
+
+      - name: Test action with env vars and vendor path
+        id: test-retry-vendor
+        uses: ./
+        with:
+          command: _DATABASE_CONFIG=shared_tables _STORAGE_PATH=/tmp/storage docker exec phpunit-retry-env vendor/bin/phpunit vendor/sample/library/tests/VendorTest.php
+          test_dir: tests/integration/phpunit-project/vendor/sample/library/tests
+          max_attempts: 3
+          retry_wait_seconds: 5
+        continue-on-error: true
+
+      - name: Verify vendor test executed
+        run: |
+          echo "Vendor test completed with outcome: ${{ steps.test-retry-vendor.outcome }}"
+
+      - name: Cleanup
+        if: always()
+        run: docker rm -f phpunit-retry-env || true
 
   lint:
     name: Lint & Type Check

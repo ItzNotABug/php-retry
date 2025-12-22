@@ -44,6 +44,10 @@ async function runIntegrationTests() {
         name: "Environment variables job runs",
       },
       {
+        pattern: /Test action with env vars and vendor path/,
+        name: "Environment variables with vendor path runs",
+      },
+      {
         pattern: /Attempt 1/,
         name: "First attempt runs",
       },
