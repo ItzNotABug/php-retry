@@ -21,6 +21,8 @@ on:
       - 'package.json'
       - 'bun.lock'
 
+  workflow_dispatch:
+
 jobs:
   unit-tests:
     name: Unit Tests
