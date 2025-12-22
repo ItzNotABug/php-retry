@@ -1,0 +1,35 @@
+name: Update Latest Tag
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  update-tag:
+    name: Update Latest Tag
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Get latest tag
+        id: get-tag
+        run: |
+          git fetch --tags
+          LATEST_TAG=$(git tag -l 'v*' | sort -V | tail -1)
+
+          if [ -z "$LATEST_TAG" ]; then
+            echo "No tags found matching v* pattern"
+            exit 1
+          fi
+
+          echo "Latest tag: $LATEST_TAG"
+          echo "tag=$LATEST_TAG" >> $GITHUB_OUTPUT
+
+      - name: Update tag to latest commit
+        run: |
+          git push origin :refs/tags/${{ steps.get-tag.outputs.tag }}
+          git tag -f ${{ steps.get-tag.outputs.tag }}
+          git push origin ${{ steps.get-tag.outputs.tag }} --force
+          echo "✅ Updated tag ${{ steps.get-tag.outputs.tag }} to point to commit $(git rev-parse HEAD)"
