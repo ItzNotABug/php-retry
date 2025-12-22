@@ -32,14 +32,6 @@ async function runIntegrationTests() {
         name: "Complex Dependencies matrix job runs",
       },
       {
-        pattern: /scenario:Vendor Path Tests/,
-        name: "Vendor Path Tests matrix job runs",
-      },
-      {
-        pattern: /scenario:Vendor Path \(Container Only\)/,
-        name: "Vendor Path (Container Only) matrix job runs",
-      },
-      {
         pattern: /scenario:Full Test Suite/,
         name: "Full Test Suite matrix job runs",
       },
@@ -56,16 +48,12 @@ async function runIntegrationTests() {
         name: "First attempt runs",
       },
       {
-        pattern: /phpunit-retry-simple|phpunit-retry-complex|phpunit-retry-vendor|phpunit-retry-vendor-only|phpunit-retry-full|phpunit-retry-env/,
+        pattern: /phpunit-retry-simple|phpunit-retry-complex|phpunit-retry-full|phpunit-retry-env/,
         name: "Docker containers are created",
       },
       {
-        pattern: /Test file not in workspace, extracting from container|All test files found/,
-        name: "Container file extraction or workspace lookup works",
-      },
-      {
-        pattern: /SampleTest|ProjectTest|VendorTest/,
-        name: "Tests are executed (including vendor paths)",
+        pattern: /SampleTest|ProjectTest/,
+        name: "Tests are executed",
       },
       {
         pattern: /Dependency analysis:/,

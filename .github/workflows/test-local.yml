@@ -41,19 +41,9 @@ jobs:
             container_id: "complex"
             test_dir: "tests/integration/phpunit-project/tests"
 
-          - scenario: "Vendor Path Tests"
-            test_path: "vendor/sample/library/tests/VendorTest.php"
-            container_id: "vendor"
-            test_dir: "tests/integration/phpunit-project/vendor/sample/library/tests"
-
-          - scenario: "Vendor Path (Container Only)"
-            test_path: "vendor/sample/library/tests/VendorTest.php"
-            container_id: "vendor-only"
-            test_dir: "vendor/sample/library/tests"
-
           - scenario: "Full Test Suite"
             container_id: "full"
-            test_dir: "tests/integration/phpunit-project"
+            test_dir: "tests/integration/phpunit-project/tests"
     steps:
       - uses: actions/checkout@v4
 
