@@ -1,6 +1,7 @@
 import * as core from '@actions/core';
 import * as path from 'path';
 import * as fs from 'fs';
+import * as os from 'os';
 import { spawnSync } from 'child_process';
 
 export async function wait(ms: number): Promise<void> {
@@ -36,13 +37,24 @@ export function extractFileFromContainer(
   containerName: string,
   isDockerCompose: boolean,
 ): string | null {
-  const tmpBaseDir = '/tmp/phpunit-retry-tests';
+  const tmpBaseDir = path.join(os.tmpdir(), 'phpunit-retry-tests');
   // Preserve directory structure to avoid filename collisions
   // Remove leading slash from containerPath for joining
   const relativePath = containerPath.startsWith('/')
     ? containerPath.substring(1)
     : containerPath;
   const localPath = path.join(tmpBaseDir, relativePath);
+
+  // Validate path doesn't escape tmpBaseDir (prevent path traversal)
+  const resolvedPath = path.resolve(localPath);
+  const resolvedBaseDir = path.resolve(tmpBaseDir);
+  if (!resolvedPath.startsWith(resolvedBaseDir)) {
+    core.warning(
+      `Invalid container path ${containerPath} (would escape temp directory), skipping extraction`,
+    );
+    return null;
+  }
+
   const localDir = path.dirname(localPath);
 
   try {
@@ -51,14 +63,15 @@ export function extractFileFromContainer(
       fs.mkdirSync(localDir, { recursive: true });
     }
 
-    const cpCmd = isDockerCompose
-      ? `docker compose cp ${containerName}:${containerPath} ${localPath}`
-      : `docker cp ${containerName}:${containerPath} ${localPath}`;
+    // Use array form to prevent shell injection
+    const source = `${containerName}:${containerPath}`;
+    const cpArgs = isDockerCompose
+      ? ['docker', 'compose', 'cp', source, localPath]
+      : ['docker', 'cp', source, localPath];
 
-    core.debug(`Extracting test file from container: ${cpCmd}`);
+    core.debug(`Extracting test file from container: ${cpArgs.join(' ')}`);
 
-    const result = spawnSync(cpCmd, {
-      shell: 'bash',
+    const result = spawnSync(cpArgs[0]!, cpArgs.slice(1), {
       stdio: 'pipe',
     });
 
@@ -81,7 +94,7 @@ export function extractFileFromContainer(
 
 // Clean up extracted test files
 export function cleanupExtractedFiles(): void {
-  const tmpDir = '/tmp/phpunit-retry-tests';
+  const tmpDir = path.join(os.tmpdir(), 'phpunit-retry-tests');
   try {
     if (fs.existsSync(tmpDir)) {
       fs.rmSync(tmpDir, { recursive: true, force: true });

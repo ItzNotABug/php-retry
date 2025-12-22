@@ -7,6 +7,7 @@ import {
 } from "../../src/utils/helpers";
 import * as fs from "fs";
 import * as path from "path";
+import * as os from "os";
 
 describe("findTestFileInWorkspace", () => {
   const ws = "/tmp/test-ws";
@@ -179,6 +180,26 @@ describe("extractFileFromContainer", () => {
 
     expect(result).toBeNull();
   });
+
+  test("should prevent path traversal attacks", () => {
+    const result = extractFileFromContainer(
+      "/app/../../../etc/passwd",
+      "test-container",
+      false
+    );
+
+    expect(result).toBeNull();
+  });
+
+  test("should prevent path traversal with relative paths", () => {
+    const result = extractFileFromContainer(
+      "../../etc/passwd",
+      "test-container",
+      false
+    );
+
+    expect(result).toBeNull();
+  });
 });
 
 describe("cleanupExtractedFiles", () => {
@@ -187,7 +208,7 @@ describe("cleanupExtractedFiles", () => {
   });
 
   test("should clean up extraction directory", () => {
-    const tmpDir = "/tmp/phpunit-retry-tests";
+    const tmpDir = path.join(os.tmpdir(), "phpunit-retry-tests");
     fs.mkdirSync(tmpDir, { recursive: true });
     fs.writeFileSync(path.join(tmpDir, "test.php"), "<?php");
 
@@ -197,7 +218,7 @@ describe("cleanupExtractedFiles", () => {
   });
 
   test("should clean up nested directory structure", () => {
-    const tmpDir = "/tmp/phpunit-retry-tests";
+    const tmpDir = path.join(os.tmpdir(), "phpunit-retry-tests");
     const nestedPath = path.join(tmpDir, "app/vendor/tests");
     fs.mkdirSync(nestedPath, { recursive: true });
     fs.writeFileSync(path.join(nestedPath, "Test.php"), "<?php");
