@@ -31,6 +31,7 @@ export async function run(): Promise<void> {
     let attempt = 1;
     let exitCode = 0;
     let failedTests: FailedTest[] = [];
+    let initialFailedTestCount = 0;
     let dependenciesParsed = false;
     let firstAttemptStats: {
       total: number;
@@ -218,6 +219,7 @@ export async function run(): Promise<void> {
 
         if (attempt === 1) {
           firstAttemptStats = parser.getTestStats(localJunitPath);
+          initialFailedTestCount = failedTests.length;
         }
 
         if (failedTests.length === 0) {
@@ -287,7 +289,7 @@ export async function run(): Promise<void> {
         );
         if (attempt > 1) {
           const retriedWithDeps = dependenciesParsed
-            ? `${failedTests.length} failed test(s) + dependencies`
+            ? `${initialFailedTestCount} failed test(s) + dependencies`
             : 'full test suite';
           core.info(`Retried: ${retriedWithDeps}`);
         }
