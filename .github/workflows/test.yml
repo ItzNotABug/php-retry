@@ -3,9 +3,23 @@ name: Test Action
 on:
   push:
     branches: [main]
+    paths:
+      - 'src/**'
+      - 'tests/**'
+      - 'action.yml'
+      - 'dist/**'
+      - 'package.json'
+      - 'bun.lock'
 
   pull_request:
     branches: [main]
+    paths:
+      - 'src/**'
+      - 'tests/**'
+      - 'action.yml'
+      - 'dist/**'
+      - 'package.json'
+      - 'bun.lock'
 
 jobs:
   unit-tests:
