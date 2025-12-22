@@ -35,13 +35,17 @@ export async function run(): Promise<void> {
     let attempt = 1;
     let exitCode = 0;
     let failedTests: FailedTest[] = [];
-    let initialFailedTestCount = 0;
     let dependenciesParsed = false;
     let firstAttemptStats: {
       total: number;
       failures: number;
       assertions: number;
     } | null = null;
+    let attemptStats: Array<{
+      attempt: number;
+      failed: number;
+      retried: number;
+    }> = [];
 
     // Use absolute path for JUnit XML to handle commands that change directories
     // Falls back to current directory if GITHUB_WORKSPACE is not set (for local testing)
@@ -60,6 +64,8 @@ export async function run(): Promise<void> {
     while (attempt <= inputs.maxAttempts) {
       core.startGroup(`Attempt ${attempt}`);
 
+      let testsRetriedThisAttempt = 0;
+
       try {
         if (!existingJunitPath && fs.existsSync(localJunitPath)) {
           fs.unlinkSync(localJunitPath);
@@ -76,9 +82,11 @@ export async function run(): Promise<void> {
               `Could not parse dependencies on first attempt - retrying all tests`,
             );
             command = builder.addJUnitLogging(command, defaultLocalJunitPath);
+            testsRetriedThisAttempt = firstAttemptStats?.total || 0;
           } else {
             const filterPattern = resolver.buildFilterPattern(failedTests);
             const testsToRun = filterPattern.split('|').length;
+            testsRetriedThisAttempt = testsToRun;
 
             const tree = resolver.buildDependencyTree(failedTests);
             if (tree) {
@@ -207,6 +215,12 @@ export async function run(): Promise<void> {
 
         if (exitCode === 0) {
           failedTests = [];
+          // Track successful attempt
+          attemptStats.push({
+            attempt,
+            failed: 0,
+            retried: testsRetriedThisAttempt,
+          });
           break;
         }
 
@@ -219,8 +233,14 @@ export async function run(): Promise<void> {
 
         if (attempt === 1) {
           firstAttemptStats = parser.getTestStats(localJunitPath);
-          initialFailedTestCount = failedTests.length;
         }
+
+        // Track stats for this attempt
+        attemptStats.push({
+          attempt,
+          failed: failedTests.length,
+          retried: testsRetriedThisAttempt,
+        });
 
         if (failedTests.length === 0) {
           core.warning('Tests failed but no specific failures in JUnit XML');
@@ -306,31 +326,48 @@ export async function run(): Promise<void> {
       core.info('');
       core.info('='.repeat(60));
       if (firstAttemptStats) {
-        const passed = firstAttemptStats.total - firstAttemptStats.failures;
-        core.info(
-          `Total: ${firstAttemptStats.total} tests - ${firstAttemptStats.failures} failed, ${passed} passed`,
-        );
-        if (attempt > 1) {
-          const retriedWithDeps = dependenciesParsed
-            ? `${initialFailedTestCount} failed test(s) + dependencies`
-            : 'full test suite';
-          core.info(`Retried: ${retriedWithDeps}`);
+        core.info(`${firstAttemptStats.total} total tests`);
+        for (let i = 0; i < attemptStats.length; i++) {
+          const stat = attemptStats[i]!;
+          const isLast = i === attemptStats.length - 1;
+          const prefix = isLast ? ' └─' : ' ├─';
+
+          if (stat.failed === 0) {
+            const retriedInfo =
+              stat.retried > 0 ? ` (retried ${stat.retried} tests)` : '';
+            core.info(
+              `${prefix} Attempt ${stat.attempt}: All passed${retriedInfo}`,
+            );
+          } else {
+            const testWord = stat.failed === 1 ? 'test' : 'tests';
+            const retriedInfo =
+              stat.retried > 0 ? ` (retried ${stat.retried} tests)` : '';
+            core.info(
+              `${prefix} Attempt ${stat.attempt}: ${stat.failed} ${testWord} failed${retriedInfo}`,
+            );
+          }
         }
       }
-      core.info(`✓ All tests passed after ${attempt} attempt(s)`);
+      core.info(`✓ Test suite passed after ${attempt} attempts`);
       core.info('='.repeat(60));
     } else {
       core.info('');
       core.info('='.repeat(60));
       if (firstAttemptStats) {
-        const passed = firstAttemptStats.total - firstAttemptStats.failures;
-        core.info(
-          `Total: ${firstAttemptStats.total} tests - ${firstAttemptStats.failures} failed, ${passed} passed`,
-        );
+        core.info(`${firstAttemptStats.total} total tests`);
+        for (let i = 0; i < attemptStats.length; i++) {
+          const stat = attemptStats[i]!;
+          const isLast = i === attemptStats.length - 1;
+          const prefix = isLast ? ' └─' : ' ├─';
+          const testWord = stat.failed === 1 ? 'test' : 'tests';
+          const retriedInfo =
+            stat.retried > 0 ? ` (retried ${stat.retried} tests)` : '';
+          core.info(
+            `${prefix} Attempt ${stat.attempt}: ${stat.failed} ${testWord} failed${retriedInfo}`,
+          );
+        }
       }
-      core.info(
-        `✗ ${failedTests.length} test(s) still failing after ${attempt} attempt(s)`,
-      );
+      core.info(`✗ Test suite failed after ${attempt} attempts`);
       core.info('='.repeat(60));
     }
 
@@ -343,7 +380,7 @@ export async function run(): Promise<void> {
     core.setOutput('success', exitCode === 0 ? 'true' : 'false');
 
     if (exitCode !== 0) {
-      core.setFailed(`Tests failed after ${attempt} attempt(s)`);
+      core.setFailed(`Tests failed after ${attempt} attempts`);
     }
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
