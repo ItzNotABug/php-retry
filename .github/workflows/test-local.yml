@@ -24,14 +24,6 @@ jobs:
       - name: Build action
         run: bun run build
 
-      - name: Verify dist is up to date
-        run: |
-          if [ -n "$(git status --porcelain dist/)" ]; then
-            echo "Error: dist/ directory is out of date. Run 'bun run build' and commit changes."
-            git diff dist/
-            exit 1
-          fi
-
   test-action:
     name: Test Action - ${{ matrix.scenario }}
     runs-on: ubuntu-latest

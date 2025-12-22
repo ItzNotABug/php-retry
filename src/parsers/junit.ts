@@ -42,19 +42,38 @@ export class JUnitParser {
 
     let total = 0;
     let failures = 0;
+    let errors = 0;
     let assertions = 0;
 
     if (result.testsuites) {
-      total = parseInt(result.testsuites['@_tests'] || '0', 10);
-      failures = parseInt(result.testsuites['@_failures'] || '0', 10);
-      assertions = parseInt(result.testsuites['@_assertions'] || '0', 10);
+      // Check if testsuites root has attributes (some PHPUnit versions)
+      const rootTests = parseInt(result.testsuites['@_tests'] || '0', 10);
+      const rootFailures = parseInt(result.testsuites['@_failures'] || '0', 10);
+      const rootErrors = parseInt(result.testsuites['@_errors'] || '0', 10);
+
+      if (rootTests > 0) {
+        total = rootTests;
+        failures = rootFailures;
+        errors = rootErrors;
+        assertions = parseInt(result.testsuites['@_assertions'] || '0', 10);
+      } else {
+        // Sum from nested testsuites
+        const suites = this.ensureArray(result.testsuites.testsuite);
+        for (const suite of suites) {
+          total += parseInt(suite['@_tests'] || '0', 10);
+          failures += parseInt(suite['@_failures'] || '0', 10);
+          errors += parseInt(suite['@_errors'] || '0', 10);
+          assertions += parseInt(suite['@_assertions'] || '0', 10);
+        }
+      }
     } else if (result.testsuite) {
       total = parseInt(result.testsuite['@_tests'] || '0', 10);
       failures = parseInt(result.testsuite['@_failures'] || '0', 10);
+      errors = parseInt(result.testsuite['@_errors'] || '0', 10);
       assertions = parseInt(result.testsuite['@_assertions'] || '0', 10);
     }
 
-    return { total, failures, assertions };
+    return { total, failures: failures + errors, assertions };
   }
 
   private extractFailuresFromSuite(

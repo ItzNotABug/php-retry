@@ -27,6 +27,7 @@ export interface TestCase {
 export interface TestSuite {
   '@_tests'?: string;
   '@_failures'?: string;
+  '@_errors'?: string;
   '@_assertions'?: string;
   testsuite?: TestSuite | TestSuite[];
   testcase?: TestCase | TestCase[];
@@ -35,6 +36,7 @@ export interface TestSuite {
 export interface TestSuites {
   '@_tests'?: string;
   '@_failures'?: string;
+  '@_errors'?: string;
   '@_assertions'?: string;
   testsuite?: TestSuite | TestSuite[];
 }
