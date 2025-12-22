@@ -11,6 +11,10 @@ import {
   wait,
   findTestFileInWorkspace,
   validatePlatform,
+  extractFileFromContainer,
+  cleanupExtractedFiles,
+  isDockerCommand,
+  isDockerCompose,
 } from './utils/helpers.js';
 import { getExecutable } from './utils/shell.js';
 import type { FailedTest } from './types.js';
@@ -161,11 +165,7 @@ export async function run(): Promise<void> {
 
         core.debug(`Command exited with code: ${exitCode}`);
 
-        if (
-          command.includes('docker exec') ||
-          command.includes('docker compose exec') ||
-          command.includes('docker-compose exec')
-        ) {
+        if (isDockerCommand(command)) {
           const containerJunitPath = existingJunitPath || undefined;
           const extractCmd = builder.buildExtractCommand(
             command,
@@ -230,13 +230,36 @@ export async function run(): Promise<void> {
         if (attempt === 1) {
           const uniqueFiles = new Set(failedTests.map((t) => t.file));
           const parsedFiles = new Set<string>();
+          const isDocker = isDockerCommand(command);
+          const isCompose = isDockerCompose(command);
+
+          let containerName: string | null = null;
+          if (isDocker) {
+            containerName = builder.extractContainerName(command);
+            if (!containerName) {
+              core.debug('Could not extract container name from command');
+            }
+          }
 
           for (const test of failedTests) {
             if (parsedFiles.has(test.file)) {
               continue;
             }
 
-            const fullPath = findTestFileInWorkspace(test.file, inputs.testDir);
+            let fullPath = findTestFileInWorkspace(test.file, inputs.testDir);
+
+            // If not found in workspace and running in Docker,
+            // try extracting from container
+            if (!fullPath && isDocker && containerName) {
+              core.info(
+                `Test file not in workspace, extracting from container: ${test.file}`,
+              );
+              fullPath = extractFileFromContainer(
+                test.file,
+                containerName,
+                isCompose,
+              );
+            }
 
             if (fullPath) {
               resolver.parseTestFile(fullPath);
@@ -325,6 +348,8 @@ export async function run(): Promise<void> {
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     core.setFailed(`Action failed: ${errorMessage}`);
+  } finally {
+    cleanupExtractedFiles();
   }
 }
 

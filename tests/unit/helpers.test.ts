@@ -1,8 +1,13 @@
 import "./test-helper";
 import { describe, test, expect, beforeEach, afterEach } from "bun:test";
-import { findTestFileInWorkspace } from "../../src/utils/helpers";
+import {
+  findTestFileInWorkspace,
+  extractFileFromContainer,
+  cleanupExtractedFiles,
+} from "../../src/utils/helpers";
 import * as fs from "fs";
 import * as path from "path";
+import * as os from "os";
 
 describe("findTestFileInWorkspace", () => {
   const ws = "/tmp/test-ws";
@@ -152,5 +157,84 @@ describe("findTestFileInWorkspace", () => {
     );
 
     expect(result).toBe(file);
+  });
+});
+
+describe("extractFileFromContainer", () => {
+  test("should return null for invalid container", () => {
+    const result = extractFileFromContainer(
+      "/usr/src/code/tests/Test.php",
+      "nonexistent-container",
+      false
+    );
+
+    expect(result).toBeNull();
+  });
+
+  test("should return null when file doesn't exist in container", () => {
+    const result = extractFileFromContainer(
+      "/nonexistent/path/Test.php",
+      "test-container",
+      false
+    );
+
+    expect(result).toBeNull();
+  });
+
+  test("should prevent path traversal attacks", () => {
+    const result = extractFileFromContainer(
+      "/app/../../../etc/passwd",
+      "test-container",
+      false
+    );
+
+    expect(result).toBeNull();
+  });
+
+  test("should prevent path traversal with relative paths", () => {
+    const result = extractFileFromContainer(
+      "../../etc/passwd",
+      "test-container",
+      false
+    );
+
+    expect(result).toBeNull();
+  });
+
+  test("should prevent directory name prefix attacks", () => {
+    const result = extractFileFromContainer(
+      "/../phpunit-retry-wrong/invalid.php",
+      "test-container",
+      false
+    );
+
+    expect(result).toBeNull();
+  });
+});
+
+describe("cleanupExtractedFiles", () => {
+  test("should not throw when cleanup directory doesn't exist", () => {
+    expect(() => cleanupExtractedFiles()).not.toThrow();
+  });
+
+  test("should clean up extraction directory", () => {
+    const tmpDir = path.join(os.tmpdir(), "phpunit-retry-tests");
+    fs.mkdirSync(tmpDir, { recursive: true });
+    fs.writeFileSync(path.join(tmpDir, "test.php"), "<?php");
+
+    cleanupExtractedFiles();
+
+    expect(fs.existsSync(tmpDir)).toBe(false);
+  });
+
+  test("should clean up nested directory structure", () => {
+    const tmpDir = path.join(os.tmpdir(), "phpunit-retry-tests");
+    const nestedPath = path.join(tmpDir, "app/vendor/tests");
+    fs.mkdirSync(nestedPath, { recursive: true });
+    fs.writeFileSync(path.join(nestedPath, "Test.php"), "<?php");
+
+    cleanupExtractedFiles();
+
+    expect(fs.existsSync(tmpDir)).toBe(false);
   });
 });

@@ -1,6 +1,8 @@
 import * as core from '@actions/core';
 import * as path from 'path';
 import * as fs from 'fs';
+import * as os from 'os';
+import { spawnSync } from 'child_process';
 
 export async function wait(ms: number): Promise<void> {
   const waitStart = Date.now();
@@ -12,6 +14,102 @@ export async function wait(ms: number): Promise<void> {
 export function validatePlatform(): void {
   const platform = process.platform;
   core.debug(`Running on platform: ${platform}`);
+}
+
+export function isDockerCommand(command: string): boolean {
+  return (
+    command.includes('docker exec') ||
+    command.includes('docker compose exec') ||
+    command.includes('docker-compose exec')
+  );
+}
+
+export function isDockerCompose(command: string): boolean {
+  return (
+    command.includes('docker compose exec') ||
+    command.includes('docker-compose exec')
+  );
+}
+
+// Extract a file from Docker container to temp location
+export function extractFileFromContainer(
+  containerPath: string,
+  containerName: string,
+  isDockerCompose: boolean,
+): string | null {
+  const tmpBaseDir = path.join(os.tmpdir(), 'phpunit-retry-tests');
+  // Preserve directory structure to avoid filename collisions
+  // Remove leading slash from containerPath for joining
+  const relativePath = containerPath.startsWith('/')
+    ? containerPath.substring(1)
+    : containerPath;
+  const localPath = path.join(tmpBaseDir, relativePath);
+
+  // Validate path doesn't escape tmpBaseDir (prevent path traversal)
+  const resolvedPath = path.resolve(localPath);
+  const resolvedBaseDir = path.resolve(tmpBaseDir);
+  // Ensure path is inside tmpBaseDir
+  const normalizedBase = resolvedBaseDir + path.sep;
+  if (
+    resolvedPath !== resolvedBaseDir &&
+    !resolvedPath.startsWith(normalizedBase)
+  ) {
+    core.warning(
+      `Invalid container path ${containerPath} (would escape temp directory), skipping extraction`,
+    );
+    return null;
+  }
+
+  const localDir = path.dirname(localPath);
+
+  try {
+    // Create full directory structure
+    if (!fs.existsSync(localDir)) {
+      fs.mkdirSync(localDir, { recursive: true });
+    }
+
+    // Use array form to prevent shell injection
+    const source = `${containerName}:${containerPath}`;
+    const cpArgs = isDockerCompose
+      ? ['docker', 'compose', 'cp', source, localPath]
+      : ['docker', 'cp', source, localPath];
+
+    core.debug(`Extracting test file from container: ${cpArgs.join(' ')}`);
+
+    const result = spawnSync(cpArgs[0]!, cpArgs.slice(1), {
+      stdio: 'pipe',
+    });
+
+    if (result.status === 0 && fs.existsSync(localPath)) {
+      core.debug(`Successfully extracted: ${localPath}`);
+      return localPath;
+    }
+
+    core.debug(
+      `Failed to extract file: ${result.stderr?.toString() || 'unknown error'}`,
+    );
+    return null;
+  } catch (error) {
+    core.debug(
+      `Error extracting file from container: ${error instanceof Error ? error.message : String(error)}`,
+    );
+    return null;
+  }
+}
+
+// Clean up extracted test files
+export function cleanupExtractedFiles(): void {
+  const tmpDir = path.join(os.tmpdir(), 'phpunit-retry-tests');
+  try {
+    if (fs.existsSync(tmpDir)) {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+      core.debug(`Cleaned up extracted files: ${tmpDir}`);
+    }
+  } catch (error) {
+    core.debug(
+      `Failed to cleanup extracted files: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
 }
 
 // Find test file in workspace test directory
