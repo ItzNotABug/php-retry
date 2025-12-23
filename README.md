@@ -1,8 +1,9 @@
-# PHPUnit Retry Action
-
-> **Experimental - Internal use only**
+# PHP-Retry Action
 
 Intelligently retries failed PHPUnit tests with their dependencies instead of running the full test suite.
+
+**Please note that this action is not a drop-in replacement for standard PHPUnit retries.**  
+**Originally designed for Appwrite Cloud's internal test infrastructure and may require minor adjustments for other setups.**
 
 ## Usage
 
