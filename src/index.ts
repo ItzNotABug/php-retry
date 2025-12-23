@@ -334,8 +334,14 @@ export async function run(): Promise<void> {
           const prefix = isLast ? ' └─' : ' ├─';
 
           if (stat.failed === 0) {
-            const retriedInfo =
-              stat.retried > 0 ? ` (retried ${stat.retried} tests)` : '';
+            let retriedInfo = '';
+            if (stat.retried > 0) {
+              // Calculate dependencies for clarity
+              const prevStat = i > 0 ? attemptStats[i - 1] : null;
+              const failedCount = prevStat?.failed || 0;
+              const dependencies = stat.retried - failedCount;
+              retriedInfo = ` (${failedCount} failed + ${dependencies} dependencies)`;
+            }
             core.info(
               `${prefix} Attempt ${stat.attempt}: All passed${retriedInfo}`,
             );
@@ -362,8 +368,16 @@ export async function run(): Promise<void> {
           const isLast = i === attemptStats.length - 1;
           const prefix = isLast ? ' └─' : ' ├─';
           const testWord = stat.failed === 1 ? 'test' : 'tests';
-          const retriedInfo =
-            stat.retried > 0 ? ` (retried ${stat.retried} tests)` : '';
+
+          let retriedInfo = '';
+          if (stat.retried > 0 && i > 0) {
+            // For retry attempts, show the breakdown
+            const prevStat = attemptStats[i - 1]!;
+            const failedCount = prevStat.failed;
+            const dependencies = stat.retried - failedCount;
+            retriedInfo = ` (${failedCount} failed + ${dependencies} dependencies)`;
+          }
+
           core.info(
             `${prefix} Attempt ${stat.attempt}: ${stat.failed} ${testWord} failed${retriedInfo}`,
           );
