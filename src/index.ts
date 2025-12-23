@@ -355,7 +355,7 @@ export async function run(): Promise<void> {
           }
         }
       }
-      core.info(`✓ Test suite passed after ${attempt} attempts`);
+      core.info(`✓ Test suite passed after ${attempt} attempt(s)`);
       core.info('='.repeat(60));
     } else {
       core.info('');
@@ -383,7 +383,7 @@ export async function run(): Promise<void> {
           );
         }
       }
-      core.info(`✗ Test suite failed after ${attempt} attempts`);
+      core.info(`✗ Test suite failed after ${attempt} attempt(s)`);
       core.info('='.repeat(60));
     }
 
