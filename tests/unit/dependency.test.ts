@@ -169,4 +169,17 @@ describe("DependencyResolver", () => {
     expect("testCreate").toMatch(new RegExp("testCreate$"));
     expect("testCreateProject").not.toMatch(new RegExp("testCreate$"));
   });
+
+  test("should handle empty failedTests array", () => {
+    const resolver = new DependencyResolver();
+
+    const filter = resolver.buildFilterPattern([]);
+
+    // Empty array should return empty string
+    expect(filter).toBe("");
+
+    // Verify it won't cause issues when split
+    const testsToRun = filter ? filter.split("|").length : 0;
+    expect(testsToRun).toBe(0);
+  });
 });

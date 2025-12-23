@@ -45,3 +45,15 @@ export interface JUnitXML {
   testsuites?: TestSuites;
   testsuite?: TestSuite;
 }
+
+export interface AttemptStat {
+  attempt: number;
+  failed: number;
+  retried: number;
+}
+
+export interface FirstAttemptStats {
+  total: number;
+  failures: number;
+  assertions: number;
+}
