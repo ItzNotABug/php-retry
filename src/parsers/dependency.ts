@@ -96,8 +96,7 @@ export class DependencyResolver {
       const rootDeps = this.findRootDependencies(methodName, new Set());
       if (rootDeps.size > 0) {
         const root = Array.from(rootDeps)[0]!;
-        const fullChain = this.buildChainFromRoot(root, methodName);
-        return fullChain;
+        return this.buildChainFromRoot(root, methodName);
       }
     }
 
@@ -163,6 +162,10 @@ export class DependencyResolver {
       });
     }
 
-    return Array.from(allTests).join('|');
+    return Array.from(allTests)
+      .map(
+        (test) => `${test}$`,
+      ) /* `testCreateProject` should not match `testCreateProjectSMTPTests` */
+      .join('|');
   }
 }

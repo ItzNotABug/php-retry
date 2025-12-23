@@ -140,7 +140,33 @@ describe("DependencyResolver", () => {
     ]);
 
     // Should be pipe-separated for PHPUnit --filter with full class names
-    expect(filter).toMatch(/SampleTest::test\w+\|.*SampleTest::test\w+/);
+    expect(filter).toMatch(/SampleTest::test\w+\$\|.*SampleTest::test\w+\$/);
     expect(filter.split("|").length).toBeGreaterThan(1);
+  });
+
+  test("should use end-of-string anchor to prevent substring matching", () => {
+    const resolver = new DependencyResolver();
+    const testFile = path.join(fixturesDir, "sample-test.php");
+
+    resolver.parseTestFile(testFile);
+
+    const filter = resolver.buildFilterPattern([
+      {
+        name: "Tests\\E2E\\Services\\Sample\\SampleTest::testCreate",
+        class: "SampleTest",
+        method: "testCreate",
+        file: testFile,
+      },
+    ]);
+
+    // Each pattern should end with $ to prevent matching testCreateSomethingElse
+    const patterns = filter.split("|");
+    patterns.forEach((pattern) => {
+      expect(pattern).toMatch(/\$$/);
+    });
+
+    // testCreate$ should not match testCreateProject or testCreateFoo
+    expect("testCreate").toMatch(new RegExp("testCreate$"));
+    expect("testCreateProject").not.toMatch(new RegExp("testCreate$"));
   });
 });
