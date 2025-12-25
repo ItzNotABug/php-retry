@@ -40,12 +40,14 @@ async function runPrechecks(): Promise<void> {
     ["docker", "info"],
     "docker info",
     "Docker daemon is not available. Start Docker and try again.",
+    { logOutput: "never" },
   );
   await assertCommandOk(
     runCommand,
     ["docker", "compose", "version"],
     "docker compose version",
     "Docker Compose is not available. Install Docker Compose and try again.",
+    { logOutput: "never" },
   );
 }
 
@@ -152,6 +154,7 @@ async function dockerComposeDown(): Promise<void> {
     cwd: projectDir,
     allowFailure: true,
     label: "docker compose down",
+    logOutput: "on-error",
   });
 }
 
@@ -159,6 +162,7 @@ async function dockerComposeUp(): Promise<void> {
   await runCommand(["docker", "compose", "up", "-d", "--build"], {
     cwd: projectDir,
     label: "docker compose up",
+    logOutput: "on-error",
   });
 }
 
@@ -208,6 +212,7 @@ async function runScenario(
       env,
       allowFailure: true,
       label: `action:${scenario.name}`,
+      logOutput: verbose ? "always" : "never",
     });
 
     const outputs = readOutputsFile(outputFile);

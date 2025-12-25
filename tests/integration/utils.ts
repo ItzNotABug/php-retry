@@ -12,6 +12,7 @@ export type RunCommandOptions = {
   env?: Record<string, string>;
   allowFailure?: boolean;
   label?: string;
+  logOutput?: "always" | "on-error" | "never";
 };
 
 export type RunCommandResult = {
@@ -90,8 +91,9 @@ export async function assertCommandOk(
   cmd: string[],
   label: string,
   message: string,
+  options: RunCommandOptions = {},
 ): Promise<void> {
-  const result = await runCommand(cmd, { allowFailure: true, label });
+  const result = await runCommand(cmd, { allowFailure: true, label, ...options });
   if (result.exitCode !== 0) {
     throw new Error(message);
   }
@@ -132,9 +134,9 @@ export function ensureOutputFile(filePath: string): void {
   try {
     fs.writeFileSync(filePath, "", { flag: "wx" });
   } catch (error) {
-    const err = error as NodeJS.ErrnoException;
-    if (err.code !== "EEXIST") {
-      throw err;
+    const err = error as { code?: string };
+    if (err?.code !== "EEXIST") {
+      throw error;
     }
   }
 }
@@ -246,21 +248,18 @@ export function createCommandRunner(options: RunnerOptions): {
     });
     const output = captureOutput ? await collectOutput(proc) : "";
     const exitCode = await proc.exited;
+    const logMode = runOptions.logOutput ?? (verbose ? "always" : "on-error");
+    const formatted = output.trim() ? formatOutput(output).trim() : "";
 
-    if (verbose && captureOutput && output.trim()) {
-      const formatted = formatOutput(output).trim();
-      if (formatted) {
+    if (formatted) {
+      if (logMode === "always") {
         console.log(formatted);
+      } else if (logMode === "on-error" && exitCode !== 0) {
+        console.error(formatted);
       }
     }
 
     if (exitCode !== 0 && !runOptions.allowFailure) {
-      if (!verbose && output.trim()) {
-        const formatted = formatOutput(output).trim();
-        if (formatted) {
-          console.error(formatted);
-        }
-      }
       const label = runOptions.label || cmd.join(" ");
       throw new Error(`Command failed: ${label} (exit ${exitCode})`);
     }
