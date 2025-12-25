@@ -2,7 +2,7 @@ name: Update Latest Tag
 
 on:
   push:
-    branches: [main]
+    branches: [ main ]
     paths:
       - 'dist/**'
 

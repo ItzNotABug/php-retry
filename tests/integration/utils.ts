@@ -1,4 +1,5 @@
 import * as fs from "fs";
+import * as os from "os";
 import * as path from "path";
 
 export type RunnerOptions = {
@@ -84,11 +85,68 @@ export function buildActionEnv(
   return env;
 }
 
+export async function assertCommandOk(
+  runCommand: (cmd: string[], options?: RunCommandOptions) => Promise<RunCommandResult>,
+  cmd: string[],
+  label: string,
+  message: string,
+): Promise<void> {
+  const result = await runCommand(cmd, { allowFailure: true, label });
+  if (result.exitCode !== 0) {
+    throw new Error(message);
+  }
+}
+
+export function getNodePath(): string {
+  const nodePath = Bun.which("node");
+  if (!nodePath) {
+    throw new Error("node not found in PATH");
+  }
+  return nodePath;
+}
+
+export function createTempDir(prefix: string): string {
+  return fs.mkdtempSync(path.join(os.tmpdir(), prefix));
+}
+
+export function ensureFileExists(filePath: string, message: string): void {
+  if (!fs.existsSync(filePath)) {
+    throw new Error(message);
+  }
+}
+
+export function removeFileIfExists(filePath: string): void {
+  if (fs.existsSync(filePath)) {
+    fs.rmSync(filePath, { force: true });
+  }
+}
+
+export function removeDirIfExists(dirPath: string): void {
+  if (fs.existsSync(dirPath)) {
+    fs.rmSync(dirPath, { recursive: true, force: true });
+  }
+}
+
 export function ensureOutputFile(filePath: string): void {
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
-  if (!fs.existsSync(filePath)) {
-    fs.writeFileSync(filePath, "");
+  try {
+    fs.writeFileSync(filePath, "", { flag: "wx" });
+  } catch (error) {
+    const err = error as NodeJS.ErrnoException;
+    if (err.code !== "EEXIST") {
+      throw err;
+    }
   }
+}
+
+export function readOutputsFile(filePath: string): Record<string, string> {
+  ensureFileExists(filePath, `Expected action outputs file at ${filePath}`);
+  return parseOutputs(filePath);
+}
+
+export function readJUnitXml(filePath: string): string {
+  ensureFileExists(filePath, "Expected JUnit file to exist");
+  return fs.readFileSync(filePath, "utf8");
 }
 
 export function parseOutputs(filePath: string): Record<string, string> {
@@ -102,7 +160,7 @@ export function parseOutputs(filePath: string): Record<string, string> {
 
     const delimiterMatch = line.match(/^([^<]+)<<(.+)$/);
     if (delimiterMatch) {
-      const key = delimiterMatch[1]!;
+      const key = parseOutputKey(delimiterMatch[1]!);
       const delimiter = delimiterMatch[2]!;
       const valueLines: string[] = [];
       i++;
@@ -110,17 +168,35 @@ export function parseOutputs(filePath: string): Record<string, string> {
         valueLines.push(lines[i]!);
         i++;
       }
+      if (i >= lines.length) {
+        throw new Error(
+          `Missing delimiter "${delimiter}" for output key "${key}"`,
+        );
+      }
       outputs[key] = valueLines.join("\n");
       continue;
     }
 
     const equalsIndex = line.indexOf("=");
-    if (equalsIndex === -1) continue;
-    const key = line.slice(0, equalsIndex);
+    if (equalsIndex === -1) {
+      throw new Error(`Malformed output line: ${line}`);
+    }
+    const key = parseOutputKey(line.slice(0, equalsIndex));
     outputs[key] = line.slice(equalsIndex + 1);
   }
 
   return outputs;
+}
+
+function parseOutputKey(rawKey: string): string {
+  const key = rawKey.trim();
+  if (!key || key !== rawKey) {
+    throw new Error(`Invalid output key: "${rawKey}"`);
+  }
+  if (!/^[A-Za-z_][A-Za-z0-9_-]*$/.test(key)) {
+    throw new Error(`Invalid output key: "${rawKey}"`);
+  }
+  return key;
 }
 
 export function formatOutput(output: string): string {

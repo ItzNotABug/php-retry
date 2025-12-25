@@ -1,27 +1,21 @@
-import * as fs from "fs";
-import * as os from "os";
 import * as path from "path";
 import {
   buildActionEnv,
+  assertCommandOk,
+  createTempDir,
   createCommandRunner,
+  ensureFileExists,
   ensureOutputFile,
   formatOutput,
   formatDuration,
-  parseOutputs,
+  getNodePath,
+  readJUnitXml,
+  readOutputsFile,
+  removeDirIfExists,
+  removeFileIfExists,
+  type RunCommandResult,
 } from "./utils";
-
-type Scenario = {
-  name: string;
-  containerId: string;
-  testPath?: string;
-  testDir: string;
-  maxAttempts: number;
-  expectedAttempts: number;
-  expectedSuccess: "true" | "false";
-  expectedRetryTests: number;
-  expectedPresent: string[];
-  expectedAbsent: string[];
-};
+import { scenarios, type Scenario, type ScenarioResult } from "./scenarios";
 
 const args = new Set(process.argv.slice(2));
 const verbose = args.has("--verbose");
@@ -35,245 +29,260 @@ const projectDir = path.join(
   repoRoot,
   "tests",
   "integration",
+  "resources",
   "phpunit-project",
 );
-const testDirInput = "tests/integration/phpunit-project/tests";
 const containerName = "phpunit-retry-test";
 
-const scenarios: Scenario[] = [
-  {
-    name: "Simple Dependencies",
-    containerId: "simple",
-    testPath: "tests/SampleTest.php",
-    testDir: testDirInput,
-    maxAttempts: 2,
-    expectedAttempts: 2,
-    expectedSuccess: "false",
-    expectedRetryTests: 6,
-    expectedPresent: [
-      'name="testCreate"',
-      'name="testUpdate"',
-      'name="testRead"',
-      'name="testDelete"',
-      'name="testMultipleDeps"',
-      'name="testAnotherFailure"',
-    ],
-    expectedAbsent: ['name="testIndependent"'],
-  },
-  {
-    name: "Complex Dependencies",
-    containerId: "complex",
-    testPath: "tests/ProjectTest.php",
-    testDir: testDirInput,
-    maxAttempts: 2,
-    expectedAttempts: 2,
-    expectedSuccess: "false",
-    expectedRetryTests: 3,
-    expectedPresent: [
-      'name="testCreateProject"',
-      'name="testUpdateProject"',
-      'name="testDeleteProject"',
-    ],
-    expectedAbsent: ['name="testProjectValidation"', 'name="testListProjects"'],
-  },
-  {
-    name: "Full Test Suite",
-    containerId: "full",
-    testDir: testDirInput,
-    maxAttempts: 2,
-    expectedAttempts: 2,
-    expectedSuccess: "false",
-    expectedRetryTests: 9,
-    expectedPresent: [
-      'name="testCreate"',
-      'name="testUpdate"',
-      'name="testRead"',
-      'name="testDelete"',
-      'name="testMultipleDeps"',
-      'name="testAnotherFailure"',
-      'name="testCreateProject"',
-      'name="testUpdateProject"',
-      'name="testDeleteProject"',
-    ],
-    expectedAbsent: [
-      'name="testIndependent"',
-      'name="testProjectValidation"',
-      'name="testListProjects"',
-    ],
-  },
-];
+async function runPrechecks(): Promise<void> {
+  await assertCommandOk(
+    runCommand,
+    ["docker", "info"],
+    "docker info",
+    "Docker daemon is not available. Start Docker and try again.",
+  );
+  await assertCommandOk(
+    runCommand,
+    ["docker", "compose", "version"],
+    "docker compose version",
+    "Docker Compose is not available. Install Docker Compose and try again.",
+  );
+}
 
-type ScenarioResult = {
-  name: string;
-  retryCount: number;
-  durationMs: number;
-};
+function prepareOutputFile(tmpDir: string, scenario: Scenario): string {
+  const outputFile = path.join(tmpDir, `outputs-${scenario.containerId}.txt`);
+  removeFileIfExists(outputFile);
+  ensureOutputFile(outputFile);
+
+  return outputFile;
+}
+
+function buildScenarioCommand(scenario: Scenario): string {
+  const baseCommand = `docker exec ${containerName} vendor/bin/phpunit`;
+  if (!scenario.testPath) {
+    return baseCommand;
+  }
+  if (!/^[A-Za-z0-9_./-]+$/.test(scenario.testPath)) {
+    throw new Error(`Invalid test path: ${scenario.testPath}`);
+  }
+  return `${baseCommand} ${scenario.testPath}`;
+}
+
+function validateOutputs(
+  outputs: Record<string, string>,
+  scenario: Scenario,
+): void {
+  if (!outputs.total_attempts) {
+    throw new Error("Missing output: total_attempts");
+  }
+  if (outputs.total_attempts !== String(scenario.expectedAttempts)) {
+    throw new Error(
+      `Expected total_attempts=${scenario.expectedAttempts}, got ${outputs.total_attempts}`,
+    );
+  }
+  if (outputs.success !== scenario.expectedSuccess) {
+    throw new Error(
+      `Expected success=${scenario.expectedSuccess}, got ${outputs.success}`,
+    );
+  }
+}
+
+function validateRetryScope(xml: string, scenario: Scenario): number {
+  const testcaseNames = Array.from(
+    xml.matchAll(/<testcase\b[^>]*\bname="([^"]+)"/g),
+    (match) => match[1]!,
+  );
+  const retryCount = testcaseNames.length;
+  if (retryCount !== scenario.expectedRetryTests) {
+    throw new Error(
+      `Expected ${scenario.expectedRetryTests} testcases on retry, got ${retryCount}`,
+    );
+  }
+
+  const testcaseSet = new Set(testcaseNames);
+
+  for (const name of scenario.expectedPresent) {
+    if (!testcaseSet.has(name)) {
+      throw new Error(`Missing expected test name: ${name}`);
+    }
+  }
+
+  for (const name of scenario.expectedAbsent) {
+    if (testcaseSet.has(name)) {
+      throw new Error(`Unexpected test name on retry: ${name}`);
+    }
+  }
+
+  return retryCount;
+}
+
+function logScenarioStart(scenario: Scenario): void {
+  if (verbose) {
+    console.log(`Scenario: ${scenario.name}`);
+  }
+}
+
+function logScenarioSuccess(scenario: Scenario, retryCount: number): void {
+  if (verbose) {
+    console.log(`OK: ${scenario.name} (${retryCount} testcases)`);
+  }
+}
+
+function logScenarioFailure(
+  scenario: Scenario,
+  actionOutput: string,
+  error: unknown,
+): void {
+  if (verbose) {
+    return;
+  }
+  const message = error instanceof Error ? error.message : String(error);
+  console.error(`✗ ${scenario.name}: ${message}`);
+  if (actionOutput.trim()) {
+    const formatted = formatOutput(actionOutput).trim();
+    if (formatted) {
+      console.error(formatted);
+    }
+  }
+  console.error("Tip: re-run with --verbose for full logs.");
+}
+
+async function dockerComposeDown(): Promise<void> {
+  await runCommand(["docker", "compose", "down", "--remove-orphans"], {
+    cwd: projectDir,
+    allowFailure: true,
+    label: "docker compose down",
+  });
+}
+
+async function dockerComposeUp(): Promise<void> {
+  await runCommand(["docker", "compose", "up", "-d", "--build"], {
+    cwd: projectDir,
+    label: "docker compose up",
+  });
+}
+
+function cleanupFiles(tmpDir: string): void {
+  try {
+    removeDirIfExists(tmpDir);
+  } catch (error) {
+    if (verbose) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.warn(`Failed to remove temp dir: ${message}`);
+    }
+  }
+  try {
+    removeFileIfExists(junitPath);
+  } catch (error) {
+    if (verbose) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.warn(`Failed to remove JUnit file: ${message}`);
+    }
+  }
+}
 
 async function runScenario(
   scenario: Scenario,
   nodePath: string,
   tmpDir: string,
 ): Promise<ScenarioResult> {
-  const defaultOutputFile = path.join(
-    tmpDir,
-    `outputs-${scenario.containerId}.txt`,
-  );
-  const outputFile = process.env.GITHUB_OUTPUT || defaultOutputFile;
-  let actionOutput = "";
+  const outputFile = prepareOutputFile(tmpDir, scenario);
+  let actionResult: RunCommandResult | undefined;
   const startedAt = Date.now();
 
-  if (fs.existsSync(junitPath)) {
-    fs.unlinkSync(junitPath);
-  }
-  if (outputFile === defaultOutputFile && fs.existsSync(outputFile)) {
-    fs.unlinkSync(outputFile);
-  }
-  ensureOutputFile(outputFile);
+  removeFileIfExists(junitPath);
 
   try {
-    if (verbose) {
-      console.log(`Scenario: ${scenario.name}`);
-    }
-    const baseCommand = `docker exec ${containerName} vendor/bin/phpunit`;
-    const command = scenario.testPath
-      ? `${baseCommand} ${scenario.testPath}`
-      : baseCommand;
-
+    logScenarioStart(scenario);
+    const command = buildScenarioCommand(scenario);
     const env = buildActionEnv(command, {
       repoRoot,
       outputPath: outputFile,
       testDir: scenario.testDir,
       maxAttempts: scenario.maxAttempts,
     });
+    env.GITHUB_OUTPUT = outputFile;
 
-    const actionResult = await runCommand([nodePath, distEntry], {
+    actionResult = await runCommand([nodePath, distEntry], {
       cwd: repoRoot,
       env,
       allowFailure: true,
       label: `action:${scenario.name}`,
     });
-    actionOutput = actionResult.output;
 
-    if (!fs.existsSync(outputFile)) {
-      throw new Error(`Expected action outputs file at ${outputFile}`);
-    }
+    const outputs = readOutputsFile(outputFile);
+    validateOutputs(outputs, scenario);
 
-    const outputs = parseOutputs(outputFile);
-    if (!outputs.total_attempts) {
-      throw new Error("Missing output: total_attempts");
-    }
-    if (outputs.total_attempts !== String(scenario.expectedAttempts)) {
-      throw new Error(
-        `Expected total_attempts=${scenario.expectedAttempts}, got ${outputs.total_attempts}`,
-      );
-    }
-    if (outputs.success !== scenario.expectedSuccess) {
-      throw new Error(
-        `Expected success=${scenario.expectedSuccess}, got ${outputs.success}`,
-      );
-    }
-
-    if (!fs.existsSync(junitPath)) {
-      throw new Error("Expected JUnit file to exist");
-    }
-
-    const xml = fs.readFileSync(junitPath, "utf8");
-    const retryCount = (xml.match(/<testcase\b/g) || []).length;
-    if (retryCount !== scenario.expectedRetryTests) {
-      throw new Error(
-        `Expected ${scenario.expectedRetryTests} testcases on retry, got ${retryCount}`,
-      );
-    }
-
-    for (const pattern of scenario.expectedPresent) {
-      if (!xml.includes(pattern)) {
-        throw new Error(`Missing expected test pattern: ${pattern}`);
-      }
-    }
-
-    for (const pattern of scenario.expectedAbsent) {
-      if (xml.includes(pattern)) {
-        throw new Error(`Unexpected test pattern on retry: ${pattern}`);
-      }
-    }
-
+    const xml = readJUnitXml(junitPath);
+    const retryCount = validateRetryScope(xml, scenario);
     const durationMs = Date.now() - startedAt;
-    if (verbose) {
-      console.log(`OK: ${scenario.name} (${retryCount} testcases)`);
-    }
+    logScenarioSuccess(scenario, retryCount);
     return { name: scenario.name, retryCount, durationMs };
   } catch (error) {
-    if (!verbose) {
-      const message = error instanceof Error ? error.message : String(error);
-      console.error(`✗ ${scenario.name}: ${message}`);
-      if (actionOutput.trim()) {
-        const formatted = formatOutput(actionOutput).trim();
-        if (formatted) {
-          console.error(formatted);
-        }
-      }
-      console.error("Tip: re-run with --verbose for full logs.");
-    }
+    logScenarioFailure(scenario, actionResult?.output ?? "", error);
     throw error;
   }
 }
 
-async function runIntegrationTests(): Promise<void> {
-  const nodePath = Bun.which("node");
-  if (!nodePath) {
-    throw new Error("node not found in PATH");
+async function runScenarios(
+  nodePath: string,
+  tmpDir: string,
+): Promise<ScenarioResult[]> {
+  const results: ScenarioResult[] = [];
+  if (!verbose) {
+    console.log("Integration tests");
+    console.log("-----------------");
+    console.log("");
   }
-
-  if (!fs.existsSync(distEntry)) {
-    throw new Error("dist/index.js not found; run bun run build first");
+  for (const scenario of scenarios) {
+    const result = await runScenario(scenario, nodePath, tmpDir);
+    results.push(result);
+    if (!verbose) {
+      console.log(`Scenario: ${result.name}`);
+      console.log("  Result: PASS");
+      console.log(`  Retry scope: ${result.retryCount} tests`);
+      console.log(`  Duration: ${formatDuration(result.durationMs)}`);
+      console.log("");
+    }
   }
+  return results;
+}
 
-  const tmpDir = fs.mkdtempSync(
-    path.join(os.tmpdir(), "phpunit-retry-integration-"),
+function logSummary(results: ScenarioResult[], durationMs: number): void {
+  if (verbose) {
+    console.log("Integration test passed");
+    return;
+  }
+  const totalTests = results.reduce((sum, r) => sum + r.retryCount, 0);
+  console.log("Summary");
+  console.log("-------");
+  console.log(
+    `  Scenarios: ${results.length}/${scenarios.length} passed`,
   );
+  console.log(`  Retry scope total: ${totalTests} tests`);
+  console.log(`  Total time: ${formatDuration(durationMs)}`);
+  console.log("");
+  console.log("Tip: use --verbose for action logs; use --raw for raw output.");
+}
+
+async function runIntegrationTests(): Promise<void> {
+  const nodePath = getNodePath();
+  ensureFileExists(distEntry, "dist/index.js not found; run bun run build first");
+  await runPrechecks();
+
+  const tmpDir = createTempDir("phpunit-retry-integration-");
   const runStartedAt = Date.now();
 
-  await runCommand(["docker", "compose", "down", "--remove-orphans"], {
-    cwd: projectDir,
-    allowFailure: true,
-    label: "docker compose down",
-  });
-
-  await runCommand(["docker", "compose", "up", "-d", "--build"], {
-    cwd: projectDir,
-    label: "docker compose up",
-  });
+  await dockerComposeDown();
+  await dockerComposeUp();
 
   try {
-    const results: ScenarioResult[] = [];
-    if (!verbose) {
-      console.log(`Running integration tests (${scenarios.length} scenarios)`);
-    }
-    for (const scenario of scenarios) {
-      const result = await runScenario(scenario, nodePath, tmpDir);
-      results.push(result);
-      if (!verbose) {
-        console.log(
-          `✓ ${result.name} (${result.retryCount} tests, ${formatDuration(result.durationMs)})`,
-        );
-      }
-    }
+    const results = await runScenarios(nodePath, tmpDir);
     const totalDuration = Date.now() - runStartedAt;
-    if (!verbose) {
-      const totalTests = results.reduce((sum, r) => sum + r.retryCount, 0);
-      console.log(
-        `All passed (${results.length}/${scenarios.length}, ${totalTests} tests) in ${formatDuration(totalDuration)}`,
-      );
-      console.log("Tip: re-run with --verbose for full logs.");
-    } else {
-      console.log("Integration test passed");
-    }
+    logSummary(results, totalDuration);
   } finally {
-    await runCommand(["docker", "compose", "down", "--remove-orphans"], {
-      cwd: projectDir,
-      allowFailure: true,
-      label: "docker compose down",
-    });
+    await dockerComposeDown();
+    cleanupFiles(tmpDir);
   }
 }
 

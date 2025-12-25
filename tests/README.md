@@ -14,7 +14,7 @@ Run: `bun test tests/unit/`
 ### Integration Tests
 End-to-end test using the action bundle and Docker:
 - **integration/index.ts** - Runs the action against a Dockerized PHPUnit project
-  - Uses `tests/integration/phpunit-project/docker-compose.yml`
+  - Uses `tests/integration/resources/phpunit-project/docker-compose.yml`
   - Tests complete retry flow with real PHPUnit runs
   - Validates JUnit parsing, dependency resolution, and retry logic
 
