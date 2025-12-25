@@ -14,7 +14,7 @@
     "lint": "prettier --check 'src/**/*.ts'",
     "test": "bun test",
     "test:unit": "bun test tests/unit/",
-    "test:integration": "bun run tests/test-integration.ts",
+    "test:integration": "bun run tests/integration/index.ts",
     "check": "bun lint && tsc --noEmit"
   },
   "devDependencies": {

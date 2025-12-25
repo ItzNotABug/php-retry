@@ -12,13 +12,13 @@ Fast, isolated tests for individual components:
 Run: `bun test tests/unit/`
 
 ### Integration Tests
-End-to-end test using GitHub Actions locally:
-- **test-integration.ts** - Runs the full action via `act` (requires Docker)
-  - Uses `.github/workflows/test.yml` workflow (test-action job)
+End-to-end test using the action bundle and Docker:
+- **integration/index.ts** - Runs the action against a Dockerized PHPUnit project
+  - Uses `tests/integration/resources/phpunit-project/docker-compose.yml`
   - Tests complete retry flow with real PHPUnit runs
   - Validates JUnit parsing, dependency resolution, and retry logic
 
-Run: `bun test:integration` (requires `act` CLI tool)
+Run: `bun test:integration` (requires Docker and Docker Compose)
 
 ## Running Tests
 
@@ -26,9 +26,6 @@ Run: `bun test:integration` (requires `act` CLI tool)
 # Unit tests (fast)
 bun test
 
-# Integration test (slower, requires Docker and act CLI)
+# Integration test (slower, requires Docker and Docker Compose)
 bun test:integration
-
-# Install act (if not already installed)
-brew install act
 ```
