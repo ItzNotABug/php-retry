@@ -1,4 +1,5 @@
 import * as core from '@actions/core';
+import * as github from '@actions/github';
 import { spawn } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -19,7 +20,19 @@ import type {
   FailedTest,
   AttemptStat,
   FirstAttemptStats,
+  JobTestResult,
+  FlakyTest,
 } from '../types.js';
+import {
+  getCommentMarker,
+  getJobId,
+  findExistingComment,
+  parseCommentData,
+  mergeJobResult,
+  formatCommentBody,
+  createOrUpdateComment,
+  deleteComment,
+} from '../utils/comments.js';
 
 export class TestRetryOrchestrator {
   private readonly inputs: ActionInputs;
@@ -209,6 +222,132 @@ export class TestRetryOrchestrator {
     });
   }
 
+  private buildJobTestResult(
+    failedTests: FailedTest[],
+    attempt: number,
+    retriedCount: number,
+    testAttemptCounts: Map<string, number>,
+    flakyTests: FlakyTest[],
+  ): JobTestResult {
+    const workflowName = process.env.GITHUB_WORKFLOW || 'unknown-workflow';
+    const jobName = process.env.GITHUB_JOB || 'unknown-job';
+
+    const failedTestsData = failedTests.map((test) => ({
+      name: test.name,
+      attempts: testAttemptCounts.get(test.name) ?? attempt,
+      error: test.error,
+    }));
+
+    return {
+      jobName,
+      workflowName,
+      attempt,
+      maxAttempts: this.inputs.maxAttempts,
+      status: failedTests.length === 0 ? 'passed' : 'failed',
+      failedTests: failedTestsData,
+      flakyTests,
+      retriedCount,
+    };
+  }
+
+  private async postPRComment(jobResult: JobTestResult): Promise<void> {
+    // Only post comments in PR context
+    if (
+      !this.inputs.githubToken ||
+      process.env.GITHUB_EVENT_NAME !== 'pull_request'
+    ) {
+      core.debug('Skipping PR comment: not in PR context or no token provided');
+      return;
+    }
+
+    try {
+      const context = github.context;
+      const prNumber = context.payload.pull_request?.number;
+      // Use GITHUB_HEAD_REF for PR events (source branch of PR)
+      const branch = process.env.GITHUB_HEAD_REF || '';
+
+      if (!prNumber) {
+        core.warning('Could not determine PR number, skipping comment');
+        return;
+      }
+
+      const octokit = github.getOctokit(this.inputs.githubToken);
+      const { owner, repo } = context.repo;
+
+      const marker = getCommentMarker(prNumber, branch);
+      const jobId = getJobId(
+        jobResult.workflowName,
+        jobResult.jobName,
+        prNumber,
+      );
+
+      const existingCommentId = await findExistingComment(
+        octokit,
+        owner,
+        repo,
+        prNumber,
+        marker,
+      );
+
+      let existingData = null;
+      if (existingCommentId) {
+        const { data: comment } = await octokit.rest.issues.getComment({
+          owner,
+          repo,
+          comment_id: existingCommentId,
+        });
+
+        existingData = parseCommentData(comment.body || '');
+      }
+
+      // Get current run ID to track CI runs (fallback for local/test environments)
+      const currentRunId = process.env.GITHUB_RUN_ID || 'local-test';
+
+      // Start fresh if different run to avoid mixing old/new data
+      const dataToMerge =
+        existingData?.runId === currentRunId ? existingData : null;
+
+      if (existingData && existingData.runId !== currentRunId) {
+        core.debug(
+          `New CI run detected (${currentRunId}), starting fresh data`,
+        );
+      }
+
+      const mergedData = mergeJobResult(
+        dataToMerge,
+        jobId,
+        jobResult,
+        currentRunId,
+      );
+
+      const hasFlakyTests = Object.values(mergedData.jobs).some(
+        (job) => job.flakyTests.length > 0,
+      );
+
+      if (!hasFlakyTests) {
+        if (existingCommentId) {
+          await deleteComment(octokit, owner, repo, existingCommentId);
+          core.debug('Deleted PR comment - no flaky tests in latest run');
+        }
+        return;
+      }
+
+      const commentBody = formatCommentBody(mergedData, marker);
+
+      await createOrUpdateComment(
+        octokit,
+        owner,
+        repo,
+        prNumber,
+        commentBody,
+        existingCommentId,
+      );
+    } catch (error) {
+      core.warning(`Failed to post PR comment: ${error}`);
+      // Don't fail the action if comment posting fails
+    }
+  }
+
   private displayTestSummary(
     exitCode: number,
     attempt: number,
@@ -268,9 +407,12 @@ export class TestRetryOrchestrator {
     let attempt = 1;
     let exitCode = 0;
     let failedTests: FailedTest[] = [];
+    let previousFailedTests: FailedTest[] = []; // Track previous attempt's failures
     let dependenciesParsed = false;
     let firstAttemptStats: FirstAttemptStats | null = null;
     let attemptStats: AttemptStat[] = [];
+    const testAttemptCounts = new Map<string, number>(); // Track attempts per test
+    const testCumulativeTiming = new Map<string, number>(); // Track cumulative time per test
 
     // Use absolute path for JUnit XML to handle commands that change directories
     // Falls back to current directory if GITHUB_WORKSPACE is not set (for local testing)
@@ -389,6 +531,15 @@ export class TestRetryOrchestrator {
 
         failedTests = this.parser.parseXMLFile(localJunitPath);
 
+        // Track attempt count and cumulative timing for each failed test
+        for (const test of failedTests) {
+          testAttemptCounts.set(test.name, attempt);
+
+          // Accumulate timing across attempts
+          const currentTime = testCumulativeTiming.get(test.name) || 0;
+          testCumulativeTiming.set(test.name, currentTime + (test.time || 0));
+        }
+
         if (attempt === 1) {
           firstAttemptStats = this.parser.getTestStats(localJunitPath);
         }
@@ -416,6 +567,9 @@ export class TestRetryOrchestrator {
           break;
         }
 
+        // Save current failures
+        previousFailedTests = [...failedTests];
+
         core.info('');
         core.info(`Waiting ${this.inputs.retryWaitSeconds}s before retry...`);
         await wait(this.inputs.retryWaitSeconds * 1000);
@@ -429,6 +583,36 @@ export class TestRetryOrchestrator {
     }
 
     this.displayTestSummary(exitCode, attempt, firstAttemptStats, attemptStats);
+
+    // Detect flaky tests:
+    // tests that failed on previous attempts but passed on final attempt
+    const flakyTests: FlakyTest[] = [];
+
+    if (exitCode === 0 && previousFailedTests.length > 0) {
+      // Tests passed overall,
+      // so any test that was in previousFailedTests is now flaky
+      for (const prevTest of previousFailedTests) {
+        flakyTests.push({
+          name: prevTest.name,
+          attempts: testAttemptCounts.get(prevTest.name) || attempt,
+          time: testCumulativeTiming.get(prevTest.name) || 0,
+        });
+      }
+    }
+
+    // Post PR comment with test summary
+    const totalRetried = attemptStats.reduce(
+      (sum, stat) => sum + stat.retried,
+      0,
+    );
+    const jobResult = this.buildJobTestResult(
+      failedTests,
+      attempt,
+      totalRetried,
+      testAttemptCounts,
+      flakyTests,
+    );
+    await this.postPRComment(jobResult);
 
     core.setOutput('total_attempts', attempt);
     core.setOutput('exit_code', exitCode);

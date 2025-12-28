@@ -102,15 +102,59 @@ export class JUnitParser {
         const className = fullName.split('\\').pop() || fullName;
         const line = parseInt(testcase['@_line'] || '0', 10);
 
+        // extract error from failure or error node
+        const errorMessage = this.extractErrorMessage(
+          testcase.failure || testcase.error,
+        );
+
+        // extract time attribute (in seconds)
+        const time = testcase['@_time']
+          ? parseFloat(testcase['@_time'])
+          : undefined;
+
         failures.push({
           name: `${fullName}::${methodName}`,
           class: className,
           method: methodName,
           file: file,
           line: line,
+          error: errorMessage,
+          time: time,
         });
       }
     }
+  }
+
+  private extractErrorMessage(failureNode: unknown): string | undefined {
+    if (!failureNode) return undefined;
+
+    // If it's a string, return it directly
+    if (typeof failureNode === 'string') {
+      return failureNode.trim();
+    }
+
+    // If it's an object, try to extract message attribute or text content
+    if (typeof failureNode === 'object') {
+      const node = failureNode as Record<string, unknown>;
+
+      // Try @_message attribute first (common in JUnit XML)
+      if (node['@_message'] && typeof node['@_message'] === 'string') {
+        return node['@_message'].trim();
+      }
+
+      // Try #text property (text content)
+      if (node['#text'] && typeof node['#text'] === 'string') {
+        return node['#text'].trim();
+      }
+
+      // If the node itself can be stringified
+      const str = String(failureNode);
+      if (str && str !== '[object Object]') {
+        return str.trim();
+      }
+    }
+
+    return undefined;
   }
 
   private ensureArray<T>(value: T | T[] | undefined): T[] {

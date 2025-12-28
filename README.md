@@ -34,14 +34,15 @@ Intelligently retries failed PHPUnit tests with their dependencies instead of ru
 
 ## Inputs
 
-| Input                | Required | Default | Description                                                |
-|----------------------|----------|---------|------------------------------------------------------------|
-| `command`            | Yes      | -       | PHPUnit command to execute                                 |
-| `test_dir`           | Yes      | -       | Test directory in workspace                                |
-| `max_attempts`       | No       | `3`     | Maximum retry attempts (1-10)                              |
-| `retry_wait_seconds` | No       | `10`    | Seconds to wait between retries                            |
-| `shell`              | No       | `bash`  | Shell: `bash`, `sh`, `pwsh`, `python`, `cmd`, `powershell` |
-| `timeout_minutes`    | No       | `30`    | Timeout per attempt (0 = no timeout)                       |
+| Input                | Required | Default               | Description                                                    |
+|----------------------|----------|-----------------------|----------------------------------------------------------------|
+| `command`            | Yes      | -                     | PHPUnit command to execute                                     |
+| `test_dir`           | Yes      | -                     | Test directory in workspace                                    |
+| `max_attempts`       | No       | `3`                   | Maximum retry attempts (1-10)                                  |
+| `retry_wait_seconds` | No       | `10`                  | Seconds to wait between retries                                |
+| `shell`              | No       | `bash`                | Shell: `bash`, `sh`, `pwsh`, `python`, `cmd`, `powershell`     |
+| `timeout_minutes`    | No       | `30`                  | Timeout per attempt (0 = no timeout)                           |
+| `github_token`       | No       | `${{ github.token }}` | GitHub token for PR comments (requires `pull-requests: write`) |
 
 ## Notes
 

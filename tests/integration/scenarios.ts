@@ -5,7 +5,7 @@ export type Scenario = {
   testDir: string;
   maxAttempts: number;
   expectedAttempts: number;
-  expectedSuccess: "true" | "false";
+  expectedSuccess: 'true' | 'false';
   expectedRetryTests: number;
   expectedPresent: string[];
   expectedAbsent: string[];
@@ -17,67 +17,67 @@ export type ScenarioResult = {
   durationMs: number;
 };
 
-const testDirInput = "tests/integration/resources/phpunit-project/tests";
+const testDirInput = 'tests/integration/resources/phpunit-project/tests';
 
 export const scenarios: Scenario[] = [
   {
-    name: "Simple Dependencies",
-    containerId: "simple",
-    testPath: "tests/SampleTest.php",
+    name: 'Simple Dependencies',
+    containerId: 'simple',
+    testPath: 'tests/SampleTest.php',
     testDir: testDirInput,
     maxAttempts: 2,
     expectedAttempts: 2,
-    expectedSuccess: "false",
+    expectedSuccess: 'false',
     expectedRetryTests: 6,
     expectedPresent: [
-      "testCreate",
-      "testUpdate",
-      "testRead",
-      "testDelete",
-      "testMultipleDeps",
-      "testAnotherFailure",
+      'testCreate',
+      'testUpdate',
+      'testRead',
+      'testDelete',
+      'testMultipleDeps',
+      'testAnotherFailure',
     ],
-    expectedAbsent: ["testIndependent"],
+    expectedAbsent: ['testIndependent'],
   },
   {
-    name: "Complex Dependencies",
-    containerId: "complex",
-    testPath: "tests/ProjectTest.php",
+    name: 'Complex Dependencies',
+    containerId: 'complex',
+    testPath: 'tests/ProjectTest.php',
     testDir: testDirInput,
     maxAttempts: 2,
     expectedAttempts: 2,
-    expectedSuccess: "false",
+    expectedSuccess: 'false',
     expectedRetryTests: 3,
     expectedPresent: [
-      "testCreateProject",
-      "testUpdateProject",
-      "testDeleteProject",
+      'testCreateProject',
+      'testUpdateProject',
+      'testDeleteProject',
     ],
-    expectedAbsent: ["testProjectValidation", "testListProjects"],
+    expectedAbsent: ['testProjectValidation', 'testListProjects'],
   },
   {
-    name: "Full Test Suite",
-    containerId: "full",
+    name: 'Full Test Suite',
+    containerId: 'full',
     testDir: testDirInput,
     maxAttempts: 2,
     expectedAttempts: 2,
-    expectedSuccess: "false",
+    expectedSuccess: 'false',
     expectedRetryTests: 9,
     expectedPresent: [
-      "testCreate",
-      "testUpdate",
-      "testRead",
-      "testDelete",
-      "testMultipleDeps",
-      "testAnotherFailure",
-      "testCreateProject",
-      "testUpdateProject",
-      "testDeleteProject",
+      'testCreate',
+      'testUpdate',
+      'testRead',
+      'testDelete',
+      'testMultipleDeps',
+      'testAnotherFailure',
+      'testCreateProject',
+      'testUpdateProject',
+      'testDeleteProject',
     ],
     expectedAbsent: [
-      "testIndependent",
-      "testProjectValidation",
-      "testListProjects",
+      'testIndependent',
+      'testProjectValidation',
+      'testListProjects',
     ],
   },
 ];

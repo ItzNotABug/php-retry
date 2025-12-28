@@ -28,6 +28,9 @@ inputs:
   test_dir:
     description: 'Base directory for test files in workspace (e.g., "tests" or "vendor/appwrite/server-ce/tests")'
     required: true
+  github_token:
+    description: 'GitHub token for posting PR comments with test summary (requires pull-requests: write permission)'
+    required: false
 
 outputs:
   total_attempts:

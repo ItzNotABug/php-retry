@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuites>
+  <testsuite name="Tests\E2E\Services\Projects\ProjectsConsoleClientTest"
+             file="/usr/src/code/vendor/appwrite/server-ce/tests/e2e/Services/Projects/ProjectsConsoleClientTest.php"
+             tests="3"
+             assertions="18"
+             failures="0"
+             errors="0"
+             skipped="0"
+             time="5.366">
+    <testcase name="testCreateProject"
+              class="Tests\E2E\Services\Projects\ProjectsConsoleClientTest"
+              classname="Tests\E2E\Services\Projects\ProjectsConsoleClientTest"
+              file="/usr/src/code/vendor/appwrite/server-ce/tests/e2e/Services/Projects/ProjectsConsoleClientTest.php"
+              line="100"
+              assertions="5"
+              time="1.234"/>
+    <testcase name="testListProjects"
+              class="Tests\E2E\Services\Projects\ProjectsConsoleClientTest"
+              classname="Tests\E2E\Services\Projects\ProjectsConsoleClientTest"
+              file="/usr/src/code/vendor/appwrite/server-ce/tests/e2e/Services/Projects/ProjectsConsoleClientTest.php"
+              line="480"
+              assertions="10"
+              time="2.145"/>
+    <testcase name="testUpdateProject"
+              class="Tests\E2E\Services\Projects\ProjectsConsoleClientTest"
+              classname="Tests\E2E\Services\Projects\ProjectsConsoleClientTest"
+              file="/usr/src/code/vendor/appwrite/server-ce/tests/e2e/Services/Projects/ProjectsConsoleClientTest.php"
+              line="903"
+              assertions="3"
+              time="1.987"/>
+  </testsuite>
+</testsuites>
