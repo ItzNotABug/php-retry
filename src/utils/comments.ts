@@ -1,10 +1,14 @@
 import * as core from '@actions/core';
 import * as github from '@actions/github';
-import type { CommentData, JobTestResult } from '../types.js';
+import type { CommentData, CommitData, JobTestResult } from '../types.js';
 
-const MAX_COMMITS = 5; // Track last n number for commits for summary
+const MAX_COMMITS = 5; // Maximum commits to track
 
 const MAX_COMMENT_SIZE = 60000; // GitHub limit is ~65KB, use 60KB to be safe
+
+const BASE64_SPACE_RATIO = 0.5; // Reserve 50% of space for base64 data overhead
+
+export const LOCAL_COMMIT_SHA = 'abc1234567890def1234567890abcdef12345678'; // Fallback for local testing
 
 /**
  * Comment message constants
@@ -12,6 +16,35 @@ const MAX_COMMENT_SIZE = 60000; // GitHub limit is ~65KB, use 60KB to be safe
 export const COMMENT_MESSAGES = {
   header: () => '## 🔄 PHP-Retry Summary',
 } as const;
+
+/**
+ * Encode comment data to base64
+ */
+function encodeCommentData(data: CommentData | string | null): string {
+  return Buffer.from(JSON.stringify(data)).toString('base64');
+}
+
+/**
+ * Build comment header template
+ */
+function buildCommentHeader(marker: string): string {
+  return `${marker}\n<!-- data: -->\n${COMMENT_MESSAGES.header()}\n\nFlaky tests detected across commits:\n`;
+}
+
+/**
+ * Build complete comment template
+ */
+function buildCommentTemplate(
+  marker: string,
+  base64Data: string,
+  content: string,
+): string {
+  return `${marker}
+<!-- data:${base64Data} -->
+${COMMENT_MESSAGES.header()}
+
+${content}`;
+}
 
 /**
  * Generate unique comment identifier marker
@@ -134,7 +167,7 @@ export function mergeCommitData(
         ...(existingCommit?.jobs || {}),
         [jobId]: jobResult,
       },
-      timestamp: new Date().toISOString(),
+      timestamp: existingCommit?.timestamp || new Date().toISOString(),
     },
   };
 
@@ -152,17 +185,224 @@ export function mergeCommitData(
 }
 
 /**
+ * Build a single commit section and return filtered commit data
+ */
+function buildCommitSection(
+  commitSha: string,
+  commitData: CommitData,
+  repo: string | undefined,
+  isFirst: boolean,
+  maxSize?: number,
+): {
+  section: string;
+  truncated: boolean;
+  truncatedCount: number;
+  filteredCommitData: CommitData;
+} {
+  const flakyTests: Array<{
+    test: { name: string; attempts: number; time: number };
+    workflowName: string;
+    jobName: string;
+    jobId: string;
+  }> = [];
+
+  for (const [jobId, job] of Object.entries(commitData.jobs)) {
+    if (!job?.flakyTests) continue;
+    for (const test of job.flakyTests) {
+      flakyTests.push({
+        test,
+        workflowName: job.workflowName,
+        jobName: job.jobName,
+        jobId,
+      });
+    }
+  }
+
+  if (flakyTests.length === 0) {
+    return {
+      section: '',
+      truncated: false,
+      truncatedCount: 0,
+      filteredCommitData: commitData,
+    };
+  }
+
+  const shortSha = commitSha.substring(0, 7);
+  const testCount = flakyTests.length;
+  const testText = testCount === 1 ? 'test' : 'tests';
+
+  let commitDisplay = `<code>${shortSha}</code>`;
+  if (repo) {
+    commitDisplay = `<a href="https://github.com/${repo}/commit/${commitSha}"><code>${shortSha}</code></a>`;
+  }
+
+  const openAttr = isFirst ? ' open' : '';
+  let section = `<details${openAttr}>
+<summary>Commit ${commitDisplay} - ${testCount} flaky ${testText}</summary>
+
+<br>
+
+| Test | Attempts | Total Time |
+|------|----------|------------|
+`;
+
+  let testsShown = 0;
+  let truncated = false;
+  const displayedTests = new Set<string>();
+
+  for (const { test, workflowName, jobName, jobId } of flakyTests) {
+    const escapedTestName = escapeMarkdownTableCell(test.name);
+    const escapedWorkflow = escapeMarkdownTableCell(workflowName);
+    const escapedJob = escapeMarkdownTableCell(jobName);
+    const testCell = `\`${escapedTestName}\` [${escapedWorkflow} / ${escapedJob}]`;
+    const timeStr = formatDuration(test.time);
+    const row = `| ${testCell} | ${test.attempts} | ${timeStr} |\n`;
+
+    if (maxSize && Buffer.byteLength(section + row, 'utf-8') > maxSize) {
+      truncated = true;
+      break;
+    }
+
+    section += row;
+    testsShown++;
+    displayedTests.add(`${jobId}:${test.name}`);
+  }
+
+  if (truncated) {
+    const remaining = flakyTests.length - testsShown;
+    section += `\n*Comment truncated: ${remaining} more flaky test(s) not shown due to size limits*\n`;
+  }
+
+  section += `\n</details>\n\n`;
+
+  // Create filtered commit data with only displayed tests
+  const filteredJobs: Record<string, JobTestResult> = {};
+  for (const [jobId, job] of Object.entries(commitData.jobs)) {
+    if (!job) continue;
+
+    const filteredFlakyTests = job.flakyTests.filter((test) =>
+      displayedTests.has(`${jobId}:${test.name}`),
+    );
+
+    // Include all jobs to preserve complete state
+    filteredJobs[jobId] = {
+      ...job,
+      flakyTests: filteredFlakyTests,
+    };
+  }
+
+  const filteredCommitData: CommitData = {
+    jobs: filteredJobs,
+    timestamp: commitData.timestamp,
+  };
+
+  return {
+    section,
+    truncated,
+    truncatedCount: flakyTests.length - testsShown,
+    filteredCommitData,
+  };
+}
+
+/**
+ * Try to build comment with N commits
+ */
+function tryBuildWithCommits(
+  data: CommentData,
+  marker: string,
+  sortedCommits: Array<[string, CommitData]>,
+  commitCount: number,
+): string | null {
+  const commitsToInclude = sortedCommits.slice(0, commitCount);
+
+  // Calculate footer size to reserve space
+  const droppedCommits = sortedCommits.length - commitCount;
+  let footer = '';
+  if (droppedCommits > 0) {
+    footer = `---\n**Note:** *${droppedCommits} older commit(s) removed due to comment size limits*`;
+  } else if (sortedCommits.length >= MAX_COMMITS) {
+    footer = `---\n**Note:** *Flaky test results are tracked for the last ${MAX_COMMITS} commits*`;
+  }
+  const footerSize = Buffer.byteLength(footer, 'utf-8');
+  const filteredCommits: Record<string, CommitData> = {};
+  let sectionsText = '';
+
+  for (let i = 0; i < commitsToInclude.length; i++) {
+    const entry = commitsToInclude[i];
+    if (!entry) continue;
+
+    const [commitSha, commitData] = entry;
+    const isFirst = i === 0;
+
+    const headerSize = Buffer.byteLength(buildCommentHeader(marker), 'utf-8');
+    const estimatedBase64Size = Math.floor(
+      MAX_COMMENT_SIZE * BASE64_SPACE_RATIO,
+    );
+    const currentSize =
+      headerSize +
+      estimatedBase64Size +
+      Buffer.byteLength(sectionsText, 'utf-8');
+    const remainingSpace = MAX_COMMENT_SIZE - currentSize - footerSize;
+
+    const { section, filteredCommitData } = buildCommitSection(
+      commitSha,
+      commitData,
+      data.repo,
+      isFirst,
+      remainingSpace,
+    );
+
+    if (!section) continue;
+
+    // Temporarily add this section to check actual size with real base64
+    const tempFilteredCommits = {
+      ...filteredCommits,
+      [commitSha]: filteredCommitData,
+    };
+    const tempData: CommentData = {
+      commits: tempFilteredCommits,
+      repo: data.repo,
+    };
+    const tempBase64 = encodeCommentData(tempData);
+    const tempBody = buildCommentTemplate(
+      marker,
+      tempBase64,
+      `Flaky tests detected across commits:\n${sectionsText}${section}${footer}`,
+    );
+
+    if (Buffer.byteLength(tempBody, 'utf-8') > MAX_COMMENT_SIZE) {
+      return null;
+    }
+
+    sectionsText += section;
+    filteredCommits[commitSha] = filteredCommitData;
+  }
+
+  // Create filtered data and encode it
+  const filteredData: CommentData = {
+    commits: filteredCommits,
+    repo: data.repo,
+  };
+  const base64Data = encodeCommentData(filteredData);
+
+  return buildCommentTemplate(
+    marker,
+    base64Data,
+    `Flaky tests detected across commits:\n${sectionsText}${footer}`,
+  );
+}
+
+/**
  * Format comment body with test results grouped by commit
  */
 export function formatCommentBody(data: CommentData, marker: string): string {
-  const base64Data = Buffer.from(JSON.stringify(data)).toString('base64');
-
-  let body = `${marker}
-<!-- data:${base64Data} -->
-${COMMENT_MESSAGES.header()}
-
-Flaky tests detected across commits:
-`;
+  // Input validation
+  if (!marker || marker.trim().length === 0) {
+    throw new Error('marker cannot be empty');
+  }
+  if (!data?.commits) {
+    throw new Error('data.commits is required');
+  }
 
   // Sort commits by timestamp (newest first)
   const sortedCommits = Object.entries(data.commits).sort(
@@ -182,85 +422,85 @@ Flaky tests detected across commits:
     throw new Error('formatCommentBody called with no flaky tests');
   }
 
-  for (let i = 0; i < sortedCommits.length; i++) {
-    const entry = sortedCommits[i];
-    if (!entry) continue;
-
-    const [commitSha, commitData] = entry;
-    const isFirst = i === 0;
-
-    const flakyTests: Array<{
-      test: { name: string; attempts: number; time: number };
-      workflowName: string;
-      jobName: string;
-    }> = [];
-
-    for (const job of Object.values(commitData.jobs)) {
-      if (!job) continue;
-
-      for (const test of job.flakyTests) {
-        flakyTests.push({
-          test,
-          workflowName: job.workflowName,
-          jobName: job.jobName,
-        });
-      }
+  for (
+    let commitCount = sortedCommits.length;
+    commitCount >= 1;
+    commitCount--
+  ) {
+    const result = tryBuildWithCommits(
+      data,
+      marker,
+      sortedCommits,
+      commitCount,
+    );
+    if (result) {
+      return result;
     }
-
-    if (flakyTests.length === 0) continue;
-
-    const shortSha = commitSha.substring(0, 7);
-    const testCount = flakyTests.length;
-    const testText = testCount === 1 ? 'test' : 'tests';
-
-    let commitDisplay = `<code>${shortSha}</code>`;
-    if (data.repo) {
-      commitDisplay = `<a href="https://github.com/${data.repo}/commit/${commitSha}"><code>${shortSha}</code></a>`;
-    }
-
-    const openAttr = isFirst ? ' open' : '';
-    body += `<details${openAttr}>
-<summary>Commit ${commitDisplay} - ${testCount} flaky ${testText}</summary>
-
-<br>
-
-| Test | Attempts | Total Time |
-|------|----------|------------|
-`;
-
-    let testsShown = 0;
-    let displayTruncated = false;
-
-    for (const { test, workflowName, jobName } of flakyTests) {
-      const escapedTestName = escapeMarkdownTableCell(test.name);
-      const escapedWorkflow = escapeMarkdownTableCell(workflowName);
-      const escapedJob = escapeMarkdownTableCell(jobName);
-      const testCell = `\`${escapedTestName}\` [${escapedWorkflow} / ${escapedJob}]`;
-      const timeStr = formatDuration(test.time);
-      const row = `| ${testCell} | ${test.attempts} | ${timeStr} |\n`;
-
-      if (Buffer.byteLength(body + row, 'utf-8') > MAX_COMMENT_SIZE) {
-        displayTruncated = true;
-        break;
-      }
-
-      body += row;
-      testsShown++;
-    }
-
-    if (displayTruncated) {
-      const remaining = flakyTests.length - testsShown;
-      body += `\n*Comment truncated: ${remaining} more flaky test(s) not shown due to size limits*\n`;
-    }
-
-    body += `\n</details>\n\n`;
   }
 
-  if (sortedCommits.length >= MAX_COMMITS) {
-    body += `---\n**Note:** *Flaky test results are tracked for the last ${MAX_COMMITS} commits*`;
+  const [firstCommit] = sortedCommits;
+  if (firstCommit) {
+    const [commitSha, commitData] = firstCommit;
+
+    // Calculate footer text first to account for its size
+    let footer = '';
+    if (sortedCommits.length > 1) {
+      const droppedCommits = sortedCommits.length - 1;
+      footer = `---\n**Note:** *${droppedCommits} older commit(s) removed due to comment size limits*`;
+    }
+
+    const footerSize = Buffer.byteLength(footer, 'utf-8');
+
+    // Reserve space for header and base64
+    const headerSize = Buffer.byteLength(buildCommentHeader(marker), 'utf-8');
+    // Reserve percentage of total space for base64 data
+    const estimatedBase64Size = Math.floor(
+      MAX_COMMENT_SIZE * BASE64_SPACE_RATIO,
+    );
+    const remainingSpace =
+      MAX_COMMENT_SIZE - headerSize - estimatedBase64Size - footerSize;
+
+    const { section, filteredCommitData } = buildCommitSection(
+      commitSha,
+      commitData,
+      data.repo,
+      true,
+      remainingSpace,
+    );
+
+    if (section) {
+      // Create filtered data with only the first commit
+      const filteredData: CommentData = {
+        commits: { [commitSha]: filteredCommitData },
+        repo: data.repo,
+      };
+      const base64Data = encodeCommentData(filteredData);
+
+      const finalBody = buildCommentTemplate(
+        marker,
+        base64Data,
+        `Flaky tests detected across commits:\n${section}${footer}`,
+      );
+
+      if (Buffer.byteLength(finalBody, 'utf-8') <= MAX_COMMENT_SIZE) {
+        return finalBody;
+      }
+    }
   }
 
-  return body;
+  const base64Data = encodeCommentData(null);
+
+  core.warning(
+    'Unable to format comment - data exceeds size limits even with truncation',
+  );
+
+  return buildCommentTemplate(
+    marker,
+    base64Data,
+    `⚠️ Unable to display test results - exceeds GitHub's comment size limit
+
+The number of flaky tests is too large to display in a single comment.`,
+  );
 }
 
 /**

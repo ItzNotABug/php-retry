@@ -32,6 +32,7 @@ import {
   formatCommentBody,
   createOrUpdateComment,
   deleteComment,
+  LOCAL_COMMIT_SHA,
 } from '../utils/comments.js';
 
 export class TestRetryOrchestrator {
@@ -300,7 +301,7 @@ export class TestRetryOrchestrator {
         existingData = parseCommentData(comment.body || '');
       }
 
-      const commitSha = context.sha || 'local-commit';
+      const commitSha = context.sha || LOCAL_COMMIT_SHA;
       const repoFullName = `${owner}/${repo}`;
 
       const mergedData = mergeCommitData(

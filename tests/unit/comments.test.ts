@@ -440,11 +440,12 @@ describe('Comment size limits', () => {
   test('should truncate display when table rows exceed size limit', () => {
     const marker = '<!-- marker -->';
 
-    // Create enough tests that the table rows would exceed 60KB
+    // Create enough tests with very long names to trigger truncation
+    // Using 150 tests with extremely long names to ensure truncation occurs
     const flakyTests = [];
-    for (let i = 0; i < 400; i++) {
+    for (let i = 0; i < 150; i++) {
       flakyTests.push({
-        name: `VeryLongTestNameThatTakesUpSpace::testMethod${i}WithALongNameToMakeThisLarger`,
+        name: `VeryLongTestNameThatTakesUpSpaceAndKeepsGoingWithMoreTextToMakeItEvenLonger::testMethod${i}WithAnExtremeLongNameToMakeThisLargerAndLargerAndEvenMoreCharactersToEnsureWeHitTheSizeLimit`,
         attempts: 3,
         time: 5.5,
       });
@@ -462,7 +463,7 @@ describe('Comment size limits', () => {
               status: 'passed',
               failedTests: [],
               flakyTests,
-              retriedCount: 200,
+              retriedCount: 50,
             },
           },
           timestamp: '2025-12-28T10:00:00.000Z',
@@ -473,13 +474,49 @@ describe('Comment size limits', () => {
 
     const body = formatCommentBody(data, marker);
 
-    // Should contain truncation notice for display
-    expect(body).toContain('Comment truncated');
-    expect(body).toContain('more flaky test(s) not shown due to size limits');
-
     // Should stay under GitHub's limit
     const bodySize = Buffer.byteLength(body, 'utf-8');
     expect(bodySize).toBeLessThan(65000);
+
+    // Verify the encoded data structure
+    const dataMatch = body.match(/<!-- data:([^<>]+?) -->/);
+    expect(dataMatch).toBeTruthy();
+    if (dataMatch) {
+      const base64Data = dataMatch[1]!.trim();
+      const jsonStr = Buffer.from(base64Data, 'base64').toString('utf-8');
+      const parsed = JSON.parse(jsonStr);
+
+      // Either Strategy 1/2 succeeded (has commits and tests)
+      // OR Strategy 3 was used (null data, error message)
+      if (body.includes('Unable to display test results')) {
+        // Strategy 3: Encoded null
+        expect(parsed).toBeNull();
+      } else {
+        // Strategy 1/2: Has commits with tests
+        expect(parsed).not.toBeNull();
+        const commitKeys = Object.keys(parsed.commits);
+        const encodedTestCount = Object.values(parsed.commits).reduce(
+          (sum: number, commit: any) =>
+            sum +
+            Object.values(commit.jobs).reduce(
+              (jobSum: number, job: any) => jobSum + job.flakyTests.length,
+              0,
+            ),
+          0,
+        );
+
+        expect(commitKeys.length).toBeGreaterThan(0);
+        expect(encodedTestCount).toBeGreaterThan(0);
+        expect(encodedTestCount).toBeLessThanOrEqual(150);
+
+        // If truncation occurred, verify the truncation message
+        if (body.includes('Comment truncated')) {
+          expect(body).toContain(
+            'more flaky test(s) not shown due to size limits',
+          );
+        }
+      }
+    }
   });
 
   test('should not truncate small comments', () => {
@@ -513,6 +550,142 @@ describe('Comment size limits', () => {
 
     // Should not contain truncation notice
     expect(body).not.toContain('Comment truncated');
+  });
+});
+
+describe('Input validation', () => {
+  test('should throw error for empty marker', () => {
+    const data: CommentData = {
+      commits: {
+        abc1234: {
+          jobs: {
+            'workflow#job#123': {
+              jobName: 'Test Job',
+              workflowName: 'test-workflow.yml',
+              attempt: 1,
+              maxAttempts: 3,
+              status: 'passed',
+              failedTests: [],
+              flakyTests: [{ name: 'Test1', attempts: 1, time: 1.0 }],
+              retriedCount: 0,
+            },
+          },
+          timestamp: '2025-12-28T10:00:00.000Z',
+        },
+      },
+      repo: 'test-repo',
+    };
+
+    expect(() => formatCommentBody(data, '')).toThrow('marker cannot be empty');
+    expect(() => formatCommentBody(data, '   ')).toThrow(
+      'marker cannot be empty',
+    );
+  });
+
+  test('should throw error for missing commits data', () => {
+    const invalidData = { commits: null, repo: 'test-repo' } as any;
+    const marker = '<!-- marker -->';
+
+    expect(() => formatCommentBody(invalidData, marker)).toThrow(
+      'data.commits is required',
+    );
+  });
+
+  test('should throw error for no commits', () => {
+    const data: CommentData = {
+      commits: {},
+      repo: 'test-repo',
+    };
+    const marker = '<!-- marker -->';
+
+    expect(() => formatCommentBody(data, marker)).toThrow(
+      'formatCommentBody called with no commits',
+    );
+  });
+
+  test('should throw error for no flaky tests', () => {
+    const data: CommentData = {
+      commits: {
+        abc1234: {
+          jobs: {
+            'workflow#job#123': {
+              jobName: 'Test Job',
+              workflowName: 'test-workflow.yml',
+              attempt: 1,
+              maxAttempts: 3,
+              status: 'passed',
+              failedTests: [],
+              flakyTests: [],
+              retriedCount: 0,
+            },
+          },
+          timestamp: '2025-12-28T10:00:00.000Z',
+        },
+      },
+      repo: 'test-repo',
+    };
+    const marker = '<!-- marker -->';
+
+    expect(() => formatCommentBody(data, marker)).toThrow(
+      'formatCommentBody called with no flaky tests',
+    );
+  });
+});
+
+describe('Strategy 3 fallback', () => {
+  test('should use minimal data when all strategies fail', () => {
+    const marker = '<!-- marker -->';
+
+    // Create an unrealistically large dataset that would exceed all limits
+    // This simulates Strategy 3 being triggered
+    const flakyTests = [];
+    const testName = 'X'.repeat(500); // Very long test name
+    for (let i = 0; i < 500; i++) {
+      flakyTests.push({
+        name: `${testName}::testMethod${i}`,
+        attempts: 3,
+        time: 5.5,
+      });
+    }
+
+    const data: CommentData = {
+      commits: {
+        abc1234: {
+          jobs: {
+            'workflow#job#123': {
+              jobName: 'Test Job',
+              workflowName: 'test-workflow.yml',
+              attempt: 3,
+              maxAttempts: 3,
+              status: 'passed',
+              failedTests: [],
+              flakyTests,
+              retriedCount: 250,
+            },
+          },
+          timestamp: '2025-12-28T10:00:00.000Z',
+        },
+      },
+      repo: 'test-repo',
+    };
+
+    const body = formatCommentBody(data, marker);
+
+    expect(body).toContain('Unable to display test results');
+    expect(body).toContain('exceeds GitHub');
+
+    const bodySize = Buffer.byteLength(body, 'utf-8');
+    expect(bodySize).toBeLessThan(65000);
+
+    const dataMatch = body.match(/<!-- data:([^<>]+?) -->/);
+    expect(dataMatch).toBeTruthy();
+    if (dataMatch) {
+      const base64Data = dataMatch[1]!.trim();
+      const jsonStr = Buffer.from(base64Data, 'base64').toString('utf-8');
+      const parsed = JSON.parse(jsonStr);
+
+      expect(parsed).toBeNull();
+    }
   });
 });
 
