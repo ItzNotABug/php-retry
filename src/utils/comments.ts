@@ -514,26 +514,22 @@ export async function createOrUpdateComment(
   body: string,
   existingCommentId?: number | null,
 ): Promise<void> {
-  try {
-    if (existingCommentId) {
-      await octokit.rest.issues.updateComment({
-        owner,
-        repo,
-        comment_id: existingCommentId,
-        body,
-      });
-      core.debug(`Updated PR comment #${existingCommentId}`);
-    } else {
-      const { data } = await octokit.rest.issues.createComment({
-        owner,
-        repo,
-        issue_number: prNumber,
-        body,
-      });
-      core.debug(`Created PR comment #${data.id}`);
-    }
-  } catch (error) {
-    core.warning(`Failed to create/update PR comment: ${error}`);
+  if (existingCommentId) {
+    await octokit.rest.issues.updateComment({
+      owner,
+      repo,
+      comment_id: existingCommentId,
+      body,
+    });
+    core.debug(`Updated PR comment #${existingCommentId}`);
+  } else {
+    const { data } = await octokit.rest.issues.createComment({
+      owner,
+      repo,
+      issue_number: prNumber,
+      body,
+    });
+    core.debug(`Created PR comment #${data.id}`);
   }
 }
 

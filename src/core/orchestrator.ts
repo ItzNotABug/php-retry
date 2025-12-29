@@ -257,7 +257,9 @@ export class TestRetryOrchestrator {
       !this.inputs.githubToken ||
       process.env.GITHUB_EVENT_NAME !== 'pull_request'
     ) {
-      core.debug('Skipping PR comment: not in PR context or no token provided');
+      core.warning(
+        'Skipping PR comment: not in PR context or no token provided',
+      );
       return;
     }
 
