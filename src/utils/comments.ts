@@ -1,6 +1,11 @@
 import * as core from '@actions/core';
 import * as github from '@actions/github';
-import type { CommentData, CommitData, JobTestResult } from '../types.js';
+import type {
+  CommentData,
+  CommitData,
+  FlakyTest,
+  JobTestResult,
+} from '../types.js';
 
 const MAX_COMMITS = 5; // Maximum commits to track
 
@@ -206,7 +211,7 @@ function buildCommitSection(
   commitSha: string,
   commitData: CommitData,
   repo: string | undefined,
-  isFirst: boolean,
+  prNumber?: number,
   maxSize?: number,
 ): {
   section: string;
@@ -215,7 +220,7 @@ function buildCommitSection(
   filteredCommitData: CommitData;
 } {
   const flakyTests: Array<{
-    test: { name: string; attempts: number; time: number };
+    test: FlakyTest;
     workflowName: string;
     jobName: string;
     jobId: string;
@@ -247,12 +252,15 @@ function buildCommitSection(
   const testText = testCount === 1 ? 'test' : 'tests';
 
   let commitDisplay = `<code>${shortSha}</code>`;
-  if (repo) {
+  if (repo && prNumber) {
+    // Use PR-specific commit URL
+    commitDisplay = `<a href="https://github.com/${repo}/pull/${prNumber}/changes/${commitSha}"><code>${shortSha}</code></a>`;
+  } else if (repo) {
+    // Fallback to generic commit URL
     commitDisplay = `<a href="https://github.com/${repo}/commit/${commitSha}"><code>${shortSha}</code></a>`;
   }
 
-  const openAttr = isFirst ? ' open' : '';
-  let section = `<details${openAttr}>
+  let section = `<details>
 <summary>Commit ${commitDisplay} - ${testCount} flaky ${testText}</summary>
 
 <br>
@@ -266,7 +274,8 @@ function buildCommitSection(
   const displayedTests = new Set<string>();
 
   for (const { test, workflowName, jobName, jobId } of flakyTests) {
-    const escapedTestName = escapeMarkdownTableCell(test.name);
+    const shortTestName = `${test.class}::${test.method}`;
+    const escapedTestName = escapeMarkdownTableCell(shortTestName);
     const escapedWorkflow = escapeMarkdownTableCell(workflowName);
     const escapedJob = escapeMarkdownTableCell(jobName);
     const testCell = `\`${escapedTestName}\` [${escapedWorkflow} / ${escapedJob}]`;
@@ -327,6 +336,7 @@ function tryBuildWithCommits(
   marker: string,
   sortedCommits: Array<[string, CommitData]>,
   commitCount: number,
+  prNumber?: number,
 ): string | null {
   const commitsToInclude = sortedCommits.slice(0, commitCount);
 
@@ -347,7 +357,6 @@ function tryBuildWithCommits(
     if (!entry) continue;
 
     const [commitSha, commitData] = entry;
-    const isFirst = i === 0;
 
     const headerSize = Buffer.byteLength(buildCommentHeader(marker), 'utf-8');
     const estimatedBase64Size = Math.floor(
@@ -363,7 +372,7 @@ function tryBuildWithCommits(
       commitSha,
       commitData,
       data.repo,
-      isFirst,
+      prNumber,
       remainingSpace,
     );
 
@@ -410,7 +419,11 @@ function tryBuildWithCommits(
 /**
  * Format comment body with test results grouped by commit
  */
-export function formatCommentBody(data: CommentData, marker: string): string {
+export function formatCommentBody(
+  data: CommentData,
+  marker: string,
+  prNumber?: number,
+): string {
   // Input validation
   if (!marker || marker.trim().length === 0) {
     throw new Error('marker cannot be empty');
@@ -447,6 +460,7 @@ export function formatCommentBody(data: CommentData, marker: string): string {
       marker,
       sortedCommits,
       commitCount,
+      prNumber,
     );
     if (result) {
       return result;
@@ -479,7 +493,7 @@ export function formatCommentBody(data: CommentData, marker: string): string {
       commitSha,
       commitData,
       data.repo,
-      true,
+      prNumber,
       remainingSpace,
     );
 

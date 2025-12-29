@@ -276,11 +276,15 @@ describe('formatCommentBody', () => {
               flakyTests: [
                 {
                   name: 'FunctionsTest::testCreate',
+                  class: 'FunctionsTest',
+                  method: 'testCreate',
                   attempts: 2,
                   time: 4.1,
                 },
                 {
                   name: 'FunctionsTest::testUpdate',
+                  class: 'FunctionsTest',
+                  method: 'testUpdate',
                   attempts: 3,
                   time: 2.5,
                 },
@@ -332,6 +336,8 @@ describe('formatCommentBody', () => {
               flakyTests: [
                 {
                   name: 'BackupTest::testRestore',
+                  class: 'BackupTest',
+                  method: 'testRestore',
                   attempts: 2,
                   time: 3.2,
                 },
@@ -367,7 +373,15 @@ describe('formatCommentBody', () => {
               maxAttempts: 3,
               status: 'passed',
               failedTests: [],
-              flakyTests: [{ name: 'Test', attempts: 2, time: 1.5 }],
+              flakyTests: [
+                {
+                  name: 'Test',
+                  class: 'Test',
+                  method: 'test',
+                  attempts: 2,
+                  time: 1.5,
+                },
+              ],
               retriedCount: 1,
             },
           },
@@ -407,7 +421,15 @@ describe('formatCommentBody', () => {
                   error: longError,
                 },
               ],
-              flakyTests: [{ name: 'Test', attempts: 2, time: 2.3 }],
+              flakyTests: [
+                {
+                  name: 'Test',
+                  class: 'Test',
+                  method: 'test',
+                  attempts: 2,
+                  time: 2.3,
+                },
+              ],
               retriedCount: 1,
             },
           },
@@ -447,6 +469,9 @@ describe('Comment size limits', () => {
     for (let i = 0; i < 150; i++) {
       flakyTests.push({
         name: `VeryLongTestNameThatTakesUpSpaceAndKeepsGoingWithMoreTextToMakeItEvenLonger::testMethod${i}WithAnExtremeLongNameToMakeThisLargerAndLargerAndEvenMoreCharactersToEnsureWeHitTheSizeLimit`,
+        class:
+          'VeryLongTestNameThatTakesUpSpaceAndKeepsGoingWithMoreTextToMakeItEvenLonger',
+        method: `testMethod${i}WithAnExtremeLongNameToMakeThisLargerAndLargerAndEvenMoreCharactersToEnsureWeHitTheSizeLimit`,
         attempts: 3,
         time: 5.5,
       });
@@ -535,8 +560,20 @@ describe('Comment size limits', () => {
               status: 'passed',
               failedTests: [],
               flakyTests: [
-                { name: 'Test1', attempts: 2, time: 1.5 },
-                { name: 'Test2', attempts: 2, time: 2.5 },
+                {
+                  name: 'Test1',
+                  class: 'Test1',
+                  method: 'test',
+                  attempts: 2,
+                  time: 1.5,
+                },
+                {
+                  name: 'Test2',
+                  class: 'Test2',
+                  method: 'test',
+                  attempts: 2,
+                  time: 2.5,
+                },
               ],
               retriedCount: 2,
             },
@@ -567,7 +604,15 @@ describe('Input validation', () => {
               maxAttempts: 3,
               status: 'passed',
               failedTests: [],
-              flakyTests: [{ name: 'Test1', attempts: 1, time: 1.0 }],
+              flakyTests: [
+                {
+                  name: 'Test1',
+                  class: 'Test1',
+                  method: 'test',
+                  attempts: 1,
+                  time: 1.0,
+                },
+              ],
               retriedCount: 0,
             },
           },
@@ -644,6 +689,8 @@ describe('Strategy 3 fallback', () => {
     for (let i = 0; i < 500; i++) {
       flakyTests.push({
         name: `${testName}::testMethod${i}`,
+        class: testName,
+        method: `testMethod${i}`,
         attempts: 3,
         time: 5.5,
       });
@@ -708,7 +755,13 @@ describe('Comment workflow scenarios', () => {
         status: 'passed',
         failedTests: [],
         flakyTests: [
-          { name: 'AccountTest::testLogin', attempts: 2, time: 1.2 },
+          {
+            name: 'AccountTest::testLogin',
+            class: 'AccountTest',
+            method: 'testLogin',
+            attempts: 2,
+            time: 1.2,
+          },
         ],
         retriedCount: 2,
       };
@@ -732,11 +785,15 @@ describe('Comment workflow scenarios', () => {
         flakyTests: [
           {
             name: 'FunctionsTest::testCreate',
+            class: 'FunctionsTest',
+            method: 'testCreate',
             attempts: 3,
             time: 5.2,
           },
           {
             name: 'FunctionsTest::testUpdate',
+            class: 'FunctionsTest',
+            method: 'testUpdate',
             attempts: 2,
             time: 3.1,
           },
@@ -800,7 +857,15 @@ describe('Comment workflow scenarios', () => {
         maxAttempts: 3,
         status: 'passed',
         failedTests: [],
-        flakyTests: [{ name: 'Test::testFlaky', attempts: 3, time: 5.2 }],
+        flakyTests: [
+          {
+            name: 'Test::testFlaky',
+            class: 'Test',
+            method: 'testFlaky',
+            attempts: 3,
+            time: 5.2,
+          },
+        ],
         retriedCount: 2,
       };
 
@@ -845,7 +910,15 @@ describe('Comment workflow scenarios', () => {
             error: specialChars,
           },
         ],
-        flakyTests: [{ name: 'Test::testSpecial', attempts: 2, time: 1.8 }],
+        flakyTests: [
+          {
+            name: 'Test::testSpecial',
+            class: 'Test',
+            method: 'testSpecial',
+            attempts: 2,
+            time: 1.8,
+          },
+        ],
         retriedCount: 1,
       };
 
@@ -876,6 +949,8 @@ describe('Comment workflow scenarios', () => {
         flakyTests: [
           {
             name: 'Test|With|Pipes::testMethod',
+            class: 'Test|With|Pipes',
+            method: 'testMethod',
             attempts: 2,
             time: 1.5,
           },
@@ -918,7 +993,15 @@ describe('Comment workflow scenarios', () => {
             error: multilineError,
           },
         ],
-        flakyTests: [{ name: 'Test::testMultiline', attempts: 2, time: 3.1 }],
+        flakyTests: [
+          {
+            name: 'Test::testMultiline',
+            class: 'Test',
+            method: 'testMultiline',
+            attempts: 2,
+            time: 3.1,
+          },
+        ],
         retriedCount: 1,
       };
 
@@ -962,7 +1045,13 @@ describe('Comment workflow scenarios', () => {
           status: 'passed',
           failedTests: [],
           flakyTests: [
-            { name: 'IntegrationTest::testAPI', attempts: 2, time: 2.3 },
+            {
+              name: 'IntegrationTest::testAPI',
+              class: 'IntegrationTest',
+              method: 'testAPI',
+              attempts: 2,
+              time: 2.3,
+            },
           ],
           retriedCount: 3,
         },
@@ -973,7 +1062,15 @@ describe('Comment workflow scenarios', () => {
           maxAttempts: 3,
           status: 'passed',
           failedTests: [],
-          flakyTests: [{ name: 'E2ETest::testLogin', attempts: 2, time: 4.1 }],
+          flakyTests: [
+            {
+              name: 'E2ETest::testLogin',
+              class: 'E2ETest',
+              method: 'testLogin',
+              attempts: 2,
+              time: 4.1,
+            },
+          ],
           retriedCount: 5,
         },
       ];
@@ -1067,6 +1164,8 @@ describe('Comment workflow scenarios', () => {
                 flakyTests: [
                   {
                     name: 'Complex::test::with::namespace',
+                    class: 'Complex',
+                    method: 'test::with::namespace',
                     attempts: 3,
                     time: 8.7,
                   },

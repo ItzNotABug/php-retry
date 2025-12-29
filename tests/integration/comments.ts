@@ -36,7 +36,13 @@ const commentTests: CommentTest[] = [
         status: 'passed',
         failedTests: [],
         flakyTests: [
-          { name: 'AccountTest::testCreate', attempts: 2, time: 2.5 },
+          {
+            name: 'AccountTest::testCreate',
+            class: 'AccountTest',
+            method: 'testCreate',
+            attempts: 2,
+            time: 2.5,
+          },
         ],
         retriedCount: 1,
       };
@@ -89,7 +95,13 @@ const commentTests: CommentTest[] = [
         status: 'passed',
         failedTests: [],
         flakyTests: [
-          { name: 'AccountTest::testUpdate', attempts: 2, time: 1.8 },
+          {
+            name: 'AccountTest::testUpdate',
+            class: 'AccountTest',
+            method: 'testUpdate',
+            attempts: 2,
+            time: 1.8,
+          },
         ],
         retriedCount: 1,
       };
@@ -111,6 +123,8 @@ const commentTests: CommentTest[] = [
         flakyTests: [
           {
             name: 'FunctionsTest::testCreate',
+            class: 'FunctionsTest',
+            method: 'testCreate',
             attempts: 3,
             time: 4.2,
           },
@@ -273,6 +287,8 @@ const commentTests: CommentTest[] = [
         flakyTests: [
           {
             name: 'AccountTest::testCreate',
+            class: 'AccountTest',
+            method: 'testCreate',
             attempts: 2,
             time: 3.2,
           },
@@ -345,6 +361,8 @@ const commentTests: CommentTest[] = [
         flakyTests: [
           {
             name: 'BackupTest::testRestore',
+            class: 'BackupTest',
+            method: 'testRestore',
             attempts: 2,
             time: 3.5,
           },

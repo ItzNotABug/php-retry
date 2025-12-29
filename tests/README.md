@@ -3,7 +3,9 @@
 ## Structure
 
 ### Unit Tests (`/tests/unit/`)
+
 Fast, isolated tests for individual components:
+
 - **junit.test.ts** - JUnit XML parser tests
 - **dependency.test.ts** - PHP @depends resolver tests
 - **command.test.ts** - PHPUnit command builder tests
@@ -12,7 +14,9 @@ Fast, isolated tests for individual components:
 Run: `bun test tests/unit/`
 
 ### Integration Tests
+
 End-to-end test using the action bundle and Docker:
+
 - **integration/index.ts** - Runs the action against a Dockerized PHPUnit project
   - Uses `tests/integration/resources/phpunit-project/docker-compose.yml`
   - Tests complete retry flow with real PHPUnit runs

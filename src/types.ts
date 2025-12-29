@@ -64,6 +64,8 @@ export interface FirstAttemptStats {
 
 export interface FlakyTest {
   name: string;
+  class: string; // Test class name (e.g., "ProjectsConsoleClientTest")
+  method: string; // Test method name (e.g., "testFoo")
   attempts: number; // Which attempt it passed on
   time: number; // Cumulative time in seconds across all attempts
 }

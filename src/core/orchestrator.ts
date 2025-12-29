@@ -305,7 +305,11 @@ export class TestRetryOrchestrator {
         existingData = parseCommentData(comment.body || '');
       }
 
-      const commitSha = context.sha || LOCAL_COMMIT_SHA;
+      // For PRs, use the head SHA instead of the merge commit SHA
+      const commitSha =
+        context.payload.pull_request?.head.sha ||
+        context.sha ||
+        LOCAL_COMMIT_SHA;
       const repoFullName = `${owner}/${repo}`;
 
       const mergedData = mergeCommitData(
@@ -321,7 +325,7 @@ export class TestRetryOrchestrator {
       );
 
       const commentBody = hasFlakyTests
-        ? formatCommentBody(mergedData, marker)
+        ? formatCommentBody(mergedData, marker, prNumber)
         : buildSuccessComment(marker, Object.keys(mergedData.commits).length);
 
       await createOrUpdateComment(
@@ -584,6 +588,8 @@ export class TestRetryOrchestrator {
       for (const prevTest of previousFailedTests) {
         flakyTests.push({
           name: prevTest.name,
+          class: prevTest.class,
+          method: prevTest.method,
           attempts: testAttemptCounts.get(prevTest.name) || attempt,
           time: testCumulativeTiming.get(prevTest.name) || 0,
         });
