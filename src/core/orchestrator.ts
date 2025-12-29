@@ -31,7 +31,7 @@ import {
   mergeCommitData,
   formatCommentBody,
   createOrUpdateComment,
-  deleteComment,
+  buildSuccessComment,
   LOCAL_COMMIT_SHA,
 } from '../utils/comments.js';
 
@@ -253,12 +253,14 @@ export class TestRetryOrchestrator {
 
   private async postPRComment(jobResult: JobTestResult): Promise<void> {
     // Only post comments in PR context
-    if (
-      !this.inputs.githubToken ||
-      process.env.GITHUB_EVENT_NAME !== 'pull_request'
-    ) {
-      core.warning(
-        'Skipping PR comment: not in PR context or no token provided',
+    if (!this.inputs.githubToken) {
+      core.warning('Skipping PR comment: GitHub token not available');
+      return;
+    }
+
+    if (process.env.GITHUB_EVENT_NAME !== 'pull_request') {
+      core.info(
+        `Skipping PR comment: not in pull request context (event: ${process.env.GITHUB_EVENT_NAME || 'unknown'})`,
       );
       return;
     }
@@ -318,15 +320,9 @@ export class TestRetryOrchestrator {
         Object.values(commit.jobs).some((job) => job.flakyTests.length > 0),
       );
 
-      if (!hasFlakyTests) {
-        if (existingCommentId) {
-          await deleteComment(octokit, owner, repo, existingCommentId);
-          core.debug('Deleted PR comment - no flaky tests in any commit');
-        }
-        return;
-      }
-
-      const commentBody = formatCommentBody(mergedData, marker);
+      const commentBody = hasFlakyTests
+        ? formatCommentBody(mergedData, marker)
+        : buildSuccessComment(marker, Object.keys(mergedData.commits).length);
 
       await createOrUpdateComment(
         octokit,
