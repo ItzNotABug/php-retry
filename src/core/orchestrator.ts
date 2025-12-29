@@ -264,7 +264,7 @@ export class TestRetryOrchestrator {
     try {
       const context = github.context;
       const prNumber = context.payload.pull_request?.number;
-      // Use GITHUB_HEAD_REF for PR events (source branch of PR)
+      // Use GITHUB_HEAD_REF for PR events
       const branch = process.env.GITHUB_HEAD_REF || '';
 
       if (!prNumber) {
