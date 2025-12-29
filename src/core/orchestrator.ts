@@ -28,7 +28,7 @@ import {
   getJobId,
   findExistingComment,
   parseCommentData,
-  mergeJobResult,
+  mergeCommitData,
   formatCommentBody,
   createOrUpdateComment,
   deleteComment,
@@ -300,34 +300,25 @@ export class TestRetryOrchestrator {
         existingData = parseCommentData(comment.body || '');
       }
 
-      // Get current run ID to track CI runs (fallback for local/test environments)
-      const currentRunId = process.env.GITHUB_RUN_ID || 'local-test';
+      const commitSha = context.sha || 'local-commit';
+      const repoFullName = `${owner}/${repo}`;
 
-      // Start fresh if different run to avoid mixing old/new data
-      const dataToMerge =
-        existingData?.runId === currentRunId ? existingData : null;
-
-      if (existingData && existingData.runId !== currentRunId) {
-        core.debug(
-          `New CI run detected (${currentRunId}), starting fresh data`,
-        );
-      }
-
-      const mergedData = mergeJobResult(
-        dataToMerge,
+      const mergedData = mergeCommitData(
+        existingData,
+        commitSha,
         jobId,
         jobResult,
-        currentRunId,
+        repoFullName,
       );
 
-      const hasFlakyTests = Object.values(mergedData.jobs).some(
-        (job) => job.flakyTests.length > 0,
+      const hasFlakyTests = Object.values(mergedData.commits).some((commit) =>
+        Object.values(commit.jobs).some((job) => job.flakyTests.length > 0),
       );
 
       if (!hasFlakyTests) {
         if (existingCommentId) {
           await deleteComment(octokit, owner, repo, existingCommentId);
-          core.debug('Deleted PR comment - no flaky tests in latest run');
+          core.debug('Deleted PR comment - no flaky tests in any commit');
         }
         return;
       }

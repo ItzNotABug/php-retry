@@ -87,10 +87,17 @@ export interface JobTestResult {
 }
 
 /**
+ * Test results for a specific commit
+ */
+export interface CommitData {
+  jobs: Record<string, JobTestResult>; // key: jobId (workflow#job)
+  timestamp: string;
+}
+
+/**
  * Complete comment data structure
  */
 export interface CommentData {
-  jobs: Record<string, JobTestResult>; // key: jobId (workflow#job#pr)
-  lastUpdated: string;
-  runId?: string; // GitHub run ID to track CI run and prevent mixing old/new data
+  commits: Record<string, CommitData>; // key: commit SHA
+  repo?: string; // owner/repo for generating commit links
 }

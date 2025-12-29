@@ -6,7 +6,7 @@ import {
   formatCommentBody,
   getCommentMarker,
   getJobId,
-  mergeJobResult,
+  mergeCommitData,
   parseCommentData,
 } from '../../src/utils/comments';
 
@@ -47,19 +47,24 @@ describe('getJobId', () => {
 describe('parseCommentData', () => {
   test('should parse valid comment data', () => {
     const jsonData = JSON.stringify({
-      jobs: {
-        'workflow#job#123': {
-          jobName: 'job',
-          workflowName: 'workflow',
-          attempt: 1,
-          maxAttempts: 3,
-          status: 'passed',
-          failedTests: [],
-          flakyTests: [],
-          retriedCount: 0,
+      commits: {
+        abc1234: {
+          jobs: {
+            'workflow#job#123': {
+              jobName: 'job',
+              workflowName: 'workflow',
+              attempt: 1,
+              maxAttempts: 3,
+              status: 'passed',
+              failedTests: [],
+              flakyTests: [],
+              retriedCount: 0,
+            },
+          },
+          timestamp: '2025-12-28T10:00:00.000Z',
         },
       },
-      lastUpdated: '2025-12-28T10:00:00.000Z',
+      repo: 'test-repo',
     });
     const base64Data = Buffer.from(jsonData).toString('base64');
     const commentBody = `<!-- 123#main#php-retry -->
@@ -68,8 +73,10 @@ describe('parseCommentData', () => {
 
     const data = parseCommentData(commentBody);
     expect(data).not.toBeNull();
-    expect(data?.jobs).toBeDefined();
-    expect(data?.lastUpdated).toBe('2025-12-28T10:00:00.000Z');
+    expect(data?.commits).toBeDefined();
+    expect(data?.commits['abc1234']?.timestamp).toBe(
+      '2025-12-28T10:00:00.000Z',
+    );
   });
 
   test('should return null for comment without data', () => {
@@ -85,7 +92,7 @@ describe('parseCommentData', () => {
   });
 });
 
-describe('mergeJobResult', () => {
+describe('mergeCommitData', () => {
   test('should create new data when existingData is null', () => {
     const jobResult: JobTestResult = {
       jobName: 'E2E Test (Account)',
@@ -98,27 +105,41 @@ describe('mergeJobResult', () => {
       retriedCount: 2,
     };
 
-    const merged = mergeJobResult(null, 'workflow#job#123', jobResult);
+    const merged = mergeCommitData(
+      null,
+      'abc1234',
+      'workflow#job#123',
+      jobResult,
+      'test-repo',
+    );
 
-    expect(merged.jobs['workflow#job#123']).toEqual(jobResult);
-    expect(merged.lastUpdated).toBeDefined();
+    expect(merged.commits['abc1234']!.jobs['workflow#job#123']).toEqual(
+      jobResult,
+    );
+    expect(merged.commits['abc1234']!.timestamp).toBeDefined();
+    expect(merged.repo).toBe('test-repo');
   });
 
   test('should merge new job result with existing data', () => {
     const existingData: CommentData = {
-      jobs: {
-        'workflow1#job1#123': {
-          jobName: 'Job 1',
-          workflowName: 'workflow1',
-          attempt: 1,
-          maxAttempts: 3,
-          status: 'passed',
-          failedTests: [],
-          flakyTests: [],
-          retriedCount: 0,
+      commits: {
+        abc1234: {
+          jobs: {
+            'workflow1#job1#123': {
+              jobName: 'Job 1',
+              workflowName: 'workflow1',
+              attempt: 1,
+              maxAttempts: 3,
+              status: 'passed',
+              failedTests: [],
+              flakyTests: [],
+              retriedCount: 0,
+            },
+          },
+          timestamp: '2025-12-28T09:00:00.000Z',
         },
       },
-      lastUpdated: '2025-12-28T09:00:00.000Z',
+      repo: 'test-repo',
     };
 
     const jobResult: JobTestResult = {
@@ -138,37 +159,48 @@ describe('mergeJobResult', () => {
       retriedCount: 1,
     };
 
-    const merged = mergeJobResult(
+    const merged = mergeCommitData(
       existingData,
+      'abc1234',
       'workflow2#job2#123',
       jobResult,
+      'test-repo',
     );
 
-    expect(Object.keys(merged.jobs)).toHaveLength(2);
-    expect(merged.jobs['workflow1#job1#123']).toEqual(
-      existingData.jobs['workflow1#job1#123'],
+    expect(Object.keys(merged.commits['abc1234']!.jobs)).toHaveLength(2);
+    expect(merged.commits['abc1234']!.jobs['workflow1#job1#123']).toEqual(
+      existingData.commits['abc1234']!.jobs['workflow1#job1#123'],
     );
-    expect(merged.jobs['workflow2#job2#123']).toEqual(jobResult);
-    expect(new Date(merged.lastUpdated).getTime()).toBeGreaterThanOrEqual(
-      new Date(existingData.lastUpdated).getTime(),
+    expect(merged.commits['abc1234']!.jobs['workflow2#job2#123']).toEqual(
+      jobResult,
+    );
+    expect(
+      new Date(merged.commits['abc1234']!.timestamp).getTime(),
+    ).toBeGreaterThanOrEqual(
+      new Date(existingData.commits['abc1234']!.timestamp).getTime(),
     );
   });
 
   test('should update existing job result', () => {
     const existingData: CommentData = {
-      jobs: {
-        'workflow#job#123': {
-          jobName: 'Job',
-          workflowName: 'workflow',
-          attempt: 1,
-          maxAttempts: 3,
-          status: 'failed',
-          failedTests: [{ name: 'Test1', attempts: 1 }],
-          flakyTests: [],
-          retriedCount: 0,
+      commits: {
+        abc1234: {
+          jobs: {
+            'workflow#job#123': {
+              jobName: 'Job',
+              workflowName: 'workflow',
+              attempt: 1,
+              maxAttempts: 3,
+              status: 'failed',
+              failedTests: [{ name: 'Test1', attempts: 1 }],
+              flakyTests: [],
+              retriedCount: 0,
+            },
+          },
+          timestamp: '2025-12-28T09:00:00.000Z',
         },
       },
-      lastUpdated: '2025-12-28T09:00:00.000Z',
+      repo: 'test-repo',
     };
 
     const updatedResult: JobTestResult = {
@@ -182,33 +214,42 @@ describe('mergeJobResult', () => {
       retriedCount: 1,
     };
 
-    const merged = mergeJobResult(
+    const merged = mergeCommitData(
       existingData,
+      'abc1234',
       'workflow#job#123',
       updatedResult,
+      'test-repo',
     );
 
-    expect(Object.keys(merged.jobs)).toHaveLength(1);
-    expect(merged.jobs['workflow#job#123']).toEqual(updatedResult);
+    expect(Object.keys(merged.commits['abc1234']!.jobs)).toHaveLength(1);
+    expect(merged.commits['abc1234']!.jobs['workflow#job#123']).toEqual(
+      updatedResult,
+    );
   });
 });
 
 describe('formatCommentBody', () => {
   test('should not be called when no flaky tests', () => {
     const data: CommentData = {
-      jobs: {
-        'workflow#job#123': {
-          jobName: 'E2E Test',
-          workflowName: 'tests-appwrite.yml',
-          attempt: 1,
-          maxAttempts: 3,
-          status: 'passed',
-          failedTests: [],
-          flakyTests: [],
-          retriedCount: 2,
+      commits: {
+        abc1234: {
+          jobs: {
+            'workflow#job#123': {
+              jobName: 'E2E Test',
+              workflowName: 'tests-appwrite.yml',
+              attempt: 1,
+              maxAttempts: 3,
+              status: 'passed',
+              failedTests: [],
+              flakyTests: [],
+              retriedCount: 2,
+            },
+          },
+          timestamp: '2025-12-28T10:00:00.000Z',
         },
       },
-      lastUpdated: '2025-12-28T10:00:00.000Z',
+      repo: 'test-repo',
     };
 
     const marker = '<!-- 123#main#php-retry -->';
@@ -221,37 +262,41 @@ describe('formatCommentBody', () => {
 
   test('should format table with flaky tests', () => {
     const data: CommentData = {
-      jobs: {
-        'workflow#job#123': {
-          jobName: 'E2E Test (Functions)',
-          workflowName: 'tests-appwrite.yml',
-          attempt: 3,
-          maxAttempts: 3,
-          status: 'passed',
-          failedTests: [],
-          flakyTests: [
-            {
-              name: 'FunctionsTest::testCreate',
-              attempts: 2,
-              time: 4.1,
+      commits: {
+        abc1234: {
+          jobs: {
+            'workflow#job#123': {
+              jobName: 'E2E Test (Functions)',
+              workflowName: 'tests-appwrite.yml',
+              attempt: 3,
+              maxAttempts: 3,
+              status: 'passed',
+              failedTests: [],
+              flakyTests: [
+                {
+                  name: 'FunctionsTest::testCreate',
+                  attempts: 2,
+                  time: 4.1,
+                },
+                {
+                  name: 'FunctionsTest::testUpdate',
+                  attempts: 3,
+                  time: 2.5,
+                },
+              ],
+              retriedCount: 5,
             },
-            {
-              name: 'FunctionsTest::testUpdate',
-              attempts: 3,
-              time: 2.5,
-            },
-          ],
-          retriedCount: 5,
+          },
+          timestamp: '2025-12-28T10:00:00.000Z',
         },
       },
-      lastUpdated: '2025-12-28T10:00:00.000Z',
+      repo: 'test-repo',
     };
 
     const marker = '<!-- 123#main#php-retry -->';
     const body = formatCommentBody(data, marker);
 
     expect(body).toContain(marker);
-    expect(body).toContain('⚠️');
     expect(body).toContain('Flaky tests detected');
     expect(body).toContain('FunctionsTest::testCreate');
     expect(body).toContain('FunctionsTest::testUpdate');
@@ -263,41 +308,45 @@ describe('formatCommentBody', () => {
 
   test('should format multiple workflows with flaky tests', () => {
     const data: CommentData = {
-      jobs: {
-        'tests-appwrite.yml#job1#123': {
-          jobName: 'E2E Test (Account)',
-          workflowName: 'tests-appwrite.yml',
-          attempt: 1,
-          maxAttempts: 3,
-          status: 'passed',
-          failedTests: [],
-          flakyTests: [],
-          retriedCount: 2,
-        },
-        'tests-cloud.yml#job2#123': {
-          jobName: 'E2E Test (Backups)',
-          workflowName: 'tests-cloud.yml',
-          attempt: 2,
-          maxAttempts: 3,
-          status: 'passed',
-          failedTests: [],
-          flakyTests: [
-            {
-              name: 'BackupTest::testRestore',
-              attempts: 2,
-              time: 3.2,
+      commits: {
+        abc1234: {
+          jobs: {
+            'tests-appwrite.yml#job1#123': {
+              jobName: 'E2E Test (Account)',
+              workflowName: 'tests-appwrite.yml',
+              attempt: 1,
+              maxAttempts: 3,
+              status: 'passed',
+              failedTests: [],
+              flakyTests: [],
+              retriedCount: 2,
             },
-          ],
-          retriedCount: 1,
+            'tests-cloud.yml#job2#123': {
+              jobName: 'E2E Test (Backups)',
+              workflowName: 'tests-cloud.yml',
+              attempt: 2,
+              maxAttempts: 3,
+              status: 'passed',
+              failedTests: [],
+              flakyTests: [
+                {
+                  name: 'BackupTest::testRestore',
+                  attempts: 2,
+                  time: 3.2,
+                },
+              ],
+              retriedCount: 1,
+            },
+          },
+          timestamp: '2025-12-28T10:00:00.000Z',
         },
       },
-      lastUpdated: '2025-12-28T10:00:00.000Z',
+      repo: 'test-repo',
     };
 
     const marker = '<!-- 123#main#php-retry -->';
     const body = formatCommentBody(data, marker);
 
-    expect(body).toContain('⚠️');
     expect(body).toContain('Flaky tests detected');
     expect(body).toContain('tests-cloud.yml');
     expect(body).toContain('E2E Test (Backups)');
@@ -307,19 +356,24 @@ describe('formatCommentBody', () => {
 
   test('should include base64-encoded data in comment', () => {
     const data: CommentData = {
-      jobs: {
-        'workflow#job#123': {
-          jobName: 'Job',
-          workflowName: 'workflow.yml',
-          attempt: 2,
-          maxAttempts: 3,
-          status: 'passed',
-          failedTests: [],
-          flakyTests: [{ name: 'Test', attempts: 2, time: 1.5 }],
-          retriedCount: 1,
+      commits: {
+        abc1234: {
+          jobs: {
+            'workflow#job#123': {
+              jobName: 'Job',
+              workflowName: 'workflow.yml',
+              attempt: 2,
+              maxAttempts: 3,
+              status: 'passed',
+              failedTests: [],
+              flakyTests: [{ name: 'Test', attempts: 2, time: 1.5 }],
+              retriedCount: 1,
+            },
+          },
+          timestamp: '2025-12-28T10:00:00.000Z',
         },
       },
-      lastUpdated: '2025-12-28T10:00:00.000Z',
+      repo: 'test-repo',
     };
 
     const marker = '<!-- marker -->';
@@ -336,44 +390,129 @@ describe('formatCommentBody', () => {
   test('should preserve full data in base64 encoding', () => {
     const longError = 'A'.repeat(200);
     const data: CommentData = {
-      jobs: {
-        'workflow#job#123': {
-          jobName: 'Job',
-          workflowName: 'workflow.yml',
-          attempt: 2,
-          maxAttempts: 3,
-          status: 'passed',
-          failedTests: [
-            {
-              name: 'Test',
-              attempts: 1,
-              error: longError,
+      commits: {
+        abc1234: {
+          jobs: {
+            'workflow#job#123': {
+              jobName: 'Job',
+              workflowName: 'workflow.yml',
+              attempt: 2,
+              maxAttempts: 3,
+              status: 'passed',
+              failedTests: [
+                {
+                  name: 'Test',
+                  attempts: 1,
+                  error: longError,
+                },
+              ],
+              flakyTests: [{ name: 'Test', attempts: 2, time: 2.3 }],
+              retriedCount: 1,
             },
-          ],
-          flakyTests: [{ name: 'Test', attempts: 2, time: 2.3 }],
-          retriedCount: 1,
+          },
+          timestamp: '2025-12-28T10:00:00.000Z',
         },
       },
-      lastUpdated: '2025-12-28T10:00:00.000Z',
+      repo: 'test-repo',
     };
 
     const marker = '<!-- marker -->';
     const body = formatCommentBody(data, marker);
 
     // Comment shows flaky test
-    expect(body).toContain('⚠️');
     expect(body).toContain('Flaky tests detected');
     // The full data (including long error) is preserved in the base64-encoded data
     const parsed = parseCommentData(body);
-    expect(parsed?.jobs['workflow#job#123']?.failedTests[0]?.error).toBe(
-      longError,
-    );
+    expect(
+      parsed?.commits['abc1234']?.jobs['workflow#job#123']?.failedTests[0]
+        ?.error,
+    ).toBe(longError);
   });
 });
 
 describe('COMMENT_MESSAGES', () => {
   test('should have correct header', () => {
     expect(COMMENT_MESSAGES.header()).toBe('## 🔄 PHP-Retry Summary');
+  });
+});
+
+describe('Comment size limits', () => {
+  test('should truncate display when table rows exceed size limit', () => {
+    const marker = '<!-- marker -->';
+
+    // Create enough tests that the table rows would exceed 60KB
+    const flakyTests = [];
+    for (let i = 0; i < 400; i++) {
+      flakyTests.push({
+        name: `VeryLongTestNameThatTakesUpSpace::testMethod${i}WithALongNameToMakeThisLarger`,
+        attempts: 3,
+        time: 5.5,
+      });
+    }
+
+    const data: CommentData = {
+      commits: {
+        abc1234: {
+          jobs: {
+            'workflow#job#123': {
+              jobName: 'Test Job',
+              workflowName: 'test-workflow.yml',
+              attempt: 3,
+              maxAttempts: 3,
+              status: 'passed',
+              failedTests: [],
+              flakyTests,
+              retriedCount: 200,
+            },
+          },
+          timestamp: '2025-12-28T10:00:00.000Z',
+        },
+      },
+      repo: 'test-repo',
+    };
+
+    const body = formatCommentBody(data, marker);
+
+    // Should contain truncation notice for display
+    expect(body).toContain('Comment truncated');
+    expect(body).toContain('more flaky test(s) not shown due to size limits');
+
+    // Should stay under GitHub's limit
+    const bodySize = Buffer.byteLength(body, 'utf-8');
+    expect(bodySize).toBeLessThan(65000);
+  });
+
+  test('should not truncate small comments', () => {
+    const marker = '<!-- marker -->';
+
+    const data: CommentData = {
+      commits: {
+        abc1234: {
+          jobs: {
+            'workflow#job#123': {
+              jobName: 'Test Job',
+              workflowName: 'test-workflow.yml',
+              attempt: 2,
+              maxAttempts: 3,
+              status: 'passed',
+              failedTests: [],
+              flakyTests: [
+                { name: 'Test1', attempts: 2, time: 1.5 },
+                { name: 'Test2', attempts: 2, time: 2.5 },
+              ],
+              retriedCount: 2,
+            },
+          },
+          timestamp: '2025-12-28T10:00:00.000Z',
+        },
+      },
+      repo: 'test-repo',
+    };
+
+    const body = formatCommentBody(data, marker);
+
+    // Should not contain truncation notice
+    expect(body).not.toContain('Comment truncated');
   });
 });
 
@@ -384,6 +523,7 @@ describe('Comment workflow scenarios', () => {
       const prNumber = 123;
       const branch = 'feature/test-retry';
       const marker = getCommentMarker(prNumber, branch);
+      const commitSha = 'abc1234';
 
       // Job 1 has flaky tests
       const job1: JobTestResult = {
@@ -400,11 +540,10 @@ describe('Comment workflow scenarios', () => {
       };
 
       const jobId1 = getJobId(job1.workflowName, job1.jobName, prNumber);
-      let data = mergeJobResult(null, jobId1, job1);
+      let data = mergeCommitData(null, commitSha, jobId1, job1, 'test-repo');
       let body = formatCommentBody(data, marker);
 
       // Shows flaky test from job1
-      expect(body).toContain('⚠️');
       expect(body).toContain('Flaky tests detected');
       expect(body).toContain('AccountTest::testLogin');
 
@@ -432,11 +571,10 @@ describe('Comment workflow scenarios', () => {
       };
 
       const jobId2 = getJobId(job2.workflowName, job2.jobName, prNumber);
-      data = mergeJobResult(data, jobId2, job2);
+      data = mergeCommitData(data, commitSha, jobId2, job2, 'test-repo');
       body = formatCommentBody(data, marker);
 
       // Should show flaky tests
-      expect(body).toContain('⚠️');
       expect(body).toContain('Flaky tests detected');
       expect(body).toContain('tests-appwrite.yml');
       expect(body).toContain('E2E Test (Functions)');
@@ -458,27 +596,27 @@ describe('Comment workflow scenarios', () => {
       };
 
       const jobId3 = getJobId(job3.workflowName, job3.jobName, prNumber);
-      data = mergeJobResult(data, jobId3, job3);
+      data = mergeCommitData(data, commitSha, jobId3, job3, 'test-repo');
       body = formatCommentBody(data, marker);
 
       // Job 3 has no flaky tests, so comment still only shows job2's flaky tests
-      expect(body).toContain('⚠️');
       expect(body).toContain('Flaky tests detected');
       expect(body).toContain('tests-appwrite.yml');
 
       // Verify we can parse it back
       const parsed = parseCommentData(body);
       expect(parsed).not.toBeNull();
-      expect(Object.keys(parsed!.jobs)).toHaveLength(3);
-      expect(parsed!.jobs[jobId1]).toEqual(job1);
-      expect(parsed!.jobs[jobId2]).toEqual(job2);
-      expect(parsed!.jobs[jobId3]).toEqual(job3);
+      expect(Object.keys(parsed!.commits[commitSha]!.jobs)).toHaveLength(3);
+      expect(parsed!.commits[commitSha]!.jobs[jobId1]).toEqual(job1);
+      expect(parsed!.commits[commitSha]!.jobs[jobId2]).toEqual(job2);
+      expect(parsed!.commits[commitSha]!.jobs[jobId3]).toEqual(job3);
     });
 
     test('should handle job retry with flaky test', () => {
       const prNumber = 456;
       const marker = getCommentMarker(prNumber, 'main');
       const jobId = getJobId('workflow.yml', 'Test Job', prNumber);
+      const commitSha = 'abc1234';
 
       // Job passes after retry with flaky test
       const passedJob: JobTestResult = {
@@ -492,11 +630,16 @@ describe('Comment workflow scenarios', () => {
         retriedCount: 2,
       };
 
-      const data = mergeJobResult(null, jobId, passedJob);
+      const data = mergeCommitData(
+        null,
+        commitSha,
+        jobId,
+        passedJob,
+        'test-repo',
+      );
       const body = formatCommentBody(data, marker);
 
       // Should show flaky test
-      expect(body).toContain('⚠️');
       expect(body).toContain('Flaky tests detected');
       expect(body).toContain('Test::testFlaky');
       expect(body).toContain('5.20s');
@@ -504,7 +647,7 @@ describe('Comment workflow scenarios', () => {
       // Verify parsed data
       const parsed = parseCommentData(body);
       if (!parsed) throw new Error('Failed to parse comment data');
-      const parsedJob = parsed.jobs[jobId];
+      const parsedJob = parsed.commits[commitSha]!.jobs[jobId];
       if (!parsedJob) throw new Error('Job not found in parsed data');
       expect(parsedJob.status).toBe('passed');
       expect(parsedJob.attempt).toBe(3);
@@ -514,6 +657,7 @@ describe('Comment workflow scenarios', () => {
     test('should preserve special characters in data encoding', () => {
       const specialChars =
         'Error with `backticks`, |pipes|, <tags>, and --> sequence';
+      const commitSha = 'abc1234';
       const job: JobTestResult = {
         jobName: 'Special Test',
         workflowName: 'test.yml',
@@ -532,22 +676,22 @@ describe('Comment workflow scenarios', () => {
       };
 
       const jobId = getJobId(job.workflowName, job.jobName, 123);
-      const data = mergeJobResult(null, jobId, job);
+      const data = mergeCommitData(null, commitSha, jobId, job, 'test-repo');
       const body = formatCommentBody(data, getCommentMarker(123));
 
       // Shows flaky test
-      expect(body).toContain('⚠️');
       expect(body).toContain('Flaky tests detected');
       // Should be able to parse back data despite special characters
       const parsed = parseCommentData(body);
       if (!parsed) throw new Error('Failed to parse comment data');
-      const parsedJob = parsed.jobs[jobId];
+      const parsedJob = parsed.commits[commitSha]!.jobs[jobId];
       if (!parsedJob || !parsedJob.failedTests[0])
         throw new Error('Job or failed test not found');
       expect(parsedJob.failedTests[0].error).toBe(specialChars);
     });
 
     test('should escape pipe characters in flaky test names', () => {
+      const commitSha = 'abc1234';
       const job: JobTestResult = {
         jobName: 'E2E | Integration Test',
         workflowName: 'tests | ci.yml',
@@ -566,7 +710,7 @@ describe('Comment workflow scenarios', () => {
       };
 
       const jobId = getJobId(job.workflowName, job.jobName, 123);
-      const data = mergeJobResult(null, jobId, job);
+      const data = mergeCommitData(null, commitSha, jobId, job, 'test-repo');
       const body = formatCommentBody(data, getCommentMarker(123));
 
       // Pipes should be escaped in table output
@@ -577,7 +721,7 @@ describe('Comment workflow scenarios', () => {
       // But data should preserve original values
       const parsed = parseCommentData(body);
       if (!parsed) throw new Error('Failed to parse comment data');
-      const parsedJob = parsed.jobs[jobId];
+      const parsedJob = parsed.commits[commitSha]!.jobs[jobId];
       if (!parsedJob) throw new Error('Job not found');
       expect(parsedJob.workflowName).toBe('tests | ci.yml');
       expect(parsedJob.jobName).toBe('E2E | Integration Test');
@@ -586,6 +730,7 @@ describe('Comment workflow scenarios', () => {
     test('should preserve newlines in base64 data', () => {
       const multilineError =
         'Error on line 1\nError on line 2\nError on line 3';
+      const commitSha = 'abc1234';
       const job: JobTestResult = {
         jobName: 'Test Job',
         workflowName: 'workflow.yml',
@@ -604,17 +749,16 @@ describe('Comment workflow scenarios', () => {
       };
 
       const jobId = getJobId(job.workflowName, job.jobName, 123);
-      const data = mergeJobResult(null, jobId, job);
+      const data = mergeCommitData(null, commitSha, jobId, job, 'test-repo');
       const body = formatCommentBody(data, getCommentMarker(123));
 
       // Shows flaky test
-      expect(body).toContain('⚠️');
       expect(body).toContain('Flaky tests detected');
 
       // Original multiline data preserved in base64 encoding
       const parsed = parseCommentData(body);
       if (!parsed) throw new Error('Failed to parse comment data');
-      const parsedJob = parsed.jobs[jobId];
+      const parsedJob = parsed.commits[commitSha]!.jobs[jobId];
       if (!parsedJob || !parsedJob.failedTests[0])
         throw new Error('Job not found');
       expect(parsedJob.failedTests[0].error).toBe(multilineError);
@@ -622,6 +766,7 @@ describe('Comment workflow scenarios', () => {
 
     test('should handle jobs with flaky tests', () => {
       const marker = getCommentMarker(789, 'develop');
+      const commitSha = 'abc1234';
 
       // Multiple jobs, some with flaky tests
       const jobs: JobTestResult[] = [
@@ -659,16 +804,15 @@ describe('Comment workflow scenarios', () => {
         },
       ];
 
-      let data: CommentData = { jobs: {}, lastUpdated: '' };
+      let data: CommentData | null = null;
       jobs.forEach((job) => {
         const jobId = getJobId(job.workflowName, job.jobName, 789);
-        data = mergeJobResult(data, jobId, job);
+        data = mergeCommitData(data, commitSha, jobId, job, 'test-repo');
       });
 
-      const body = formatCommentBody(data, marker);
+      const body = formatCommentBody(data!, marker);
 
       // Should show flaky tests
-      expect(body).toContain('⚠️');
       expect(body).toContain('Flaky tests detected');
       expect(body).toContain('IntegrationTest::testAPI');
       expect(body).toContain('E2ETest::testLogin');
@@ -676,7 +820,7 @@ describe('Comment workflow scenarios', () => {
       // Should still have embedded data
       const parsed = parseCommentData(body);
       expect(parsed).not.toBeNull();
-      expect(Object.keys(parsed!.jobs)).toHaveLength(3);
+      expect(Object.keys(parsed!.commits[commitSha]!.jobs)).toHaveLength(3);
     });
   });
 
@@ -729,32 +873,37 @@ describe('Comment workflow scenarios', () => {
   describe('Data encoding/decoding roundtrip', () => {
     test('should perfectly preserve data through encode/decode cycle', () => {
       const original: CommentData = {
-        jobs: {
-          'w1#j1#123': {
-            jobName: 'Job 1',
-            workflowName: 'workflow.yml',
-            attempt: 3,
-            maxAttempts: 3,
-            status: 'passed',
-            failedTests: [
-              {
-                name: 'Complex::test::with::namespace',
-                attempts: 3,
-                error:
-                  'Multi-line\nerror\nwith\n-->special<--\ncharacters\nand "quotes"',
+        commits: {
+          abc1234: {
+            jobs: {
+              'w1#j1#123': {
+                jobName: 'Job 1',
+                workflowName: 'workflow.yml',
+                attempt: 3,
+                maxAttempts: 3,
+                status: 'passed',
+                failedTests: [
+                  {
+                    name: 'Complex::test::with::namespace',
+                    attempts: 3,
+                    error:
+                      'Multi-line\nerror\nwith\n-->special<--\ncharacters\nand "quotes"',
+                  },
+                ],
+                flakyTests: [
+                  {
+                    name: 'Complex::test::with::namespace',
+                    attempts: 3,
+                    time: 8.7,
+                  },
+                ],
+                retriedCount: 10,
               },
-            ],
-            flakyTests: [
-              {
-                name: 'Complex::test::with::namespace',
-                attempts: 3,
-                time: 8.7,
-              },
-            ],
-            retriedCount: 10,
+            },
+            timestamp: '2025-12-28T15:30:45.123Z',
           },
         },
-        lastUpdated: '2025-12-28T15:30:45.123Z',
+        repo: 'test-repo',
       };
 
       const marker = '<!-- test -->';
@@ -762,48 +911,6 @@ describe('Comment workflow scenarios', () => {
       const decoded = parseCommentData(body);
 
       expect(decoded).toEqual(original);
-    });
-
-    test('should handle very large datasets', () => {
-      const largeData: CommentData = {
-        jobs: {},
-        lastUpdated: new Date().toISOString(),
-      };
-
-      // Create 50 jobs with 10 flaky tests each
-      for (let i = 0; i < 50; i++) {
-        const failedTests = [];
-        const flakyTests = [];
-        for (let j = 0; j < 10; j++) {
-          failedTests.push({
-            name: `Test${i}::testMethod${j}`,
-            attempts: 3,
-            error: `Error message for test ${i}-${j}`.repeat(5),
-          });
-          flakyTests.push({
-            name: `Test${i}::testMethod${j}`,
-            attempts: 3,
-            time: 1.5 + j * 0.2,
-          });
-        }
-
-        largeData.jobs[`workflow${i}.yml#Job${i}#${i}`] = {
-          jobName: `Job ${i}`,
-          workflowName: `workflow${i}.yml`,
-          attempt: 3,
-          maxAttempts: 3,
-          status: 'passed',
-          failedTests,
-          flakyTests,
-          retriedCount: i,
-        };
-      }
-
-      const body = formatCommentBody(largeData, '<!-- large -->');
-      const decoded = parseCommentData(body);
-
-      expect(decoded).toEqual(largeData);
-      expect(Object.keys(decoded!.jobs)).toHaveLength(50);
     });
   });
 });

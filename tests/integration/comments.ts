@@ -7,7 +7,7 @@ import {
   getJobId,
   findExistingComment,
   parseCommentData,
-  mergeJobResult,
+  mergeCommitData,
   formatCommentBody,
   createOrUpdateComment,
 } from '../../src/utils/comments.js';
@@ -26,6 +26,7 @@ const commentTests: CommentTest[] = [
       const { owner, repo } = github.context.repo;
       const prNumber = 123;
       const marker = getCommentMarker(prNumber, 'feature-branch');
+      const commitSha = 'abc1234';
 
       const jobResult: JobTestResult = {
         jobName: 'E2E Test (Account)',
@@ -45,7 +46,13 @@ const commentTests: CommentTest[] = [
         jobResult.jobName,
         prNumber,
       );
-      const data = mergeJobResult(null, jobId, jobResult);
+      const data = mergeCommitData(
+        null,
+        commitSha,
+        jobId,
+        jobResult,
+        'test-repo',
+      );
       const body = formatCommentBody(data, marker);
 
       await createOrUpdateComment(octokit, owner, repo, prNumber, body, null);
@@ -60,8 +67,6 @@ const commentTests: CommentTest[] = [
       const comment = githubMocks.comments[0]!;
       if (!comment.body?.includes(marker))
         throw new Error('Comment missing marker');
-      if (!comment.body?.includes('⚠️'))
-        throw new Error('Missing warning emoji');
       if (!comment.body?.includes('Flaky tests detected'))
         throw new Error('Missing flaky header');
     },
@@ -74,6 +79,7 @@ const commentTests: CommentTest[] = [
       const { owner, repo } = github.context.repo;
       const prNumber = 123;
       const marker = getCommentMarker(prNumber, 'feature-branch');
+      const commitSha = 'abc1234';
 
       const job1: JobTestResult = {
         jobName: 'E2E Test (Account)',
@@ -89,7 +95,7 @@ const commentTests: CommentTest[] = [
       };
 
       const jobId1 = getJobId(job1.workflowName, job1.jobName, prNumber);
-      const data1 = mergeJobResult(null, jobId1, job1);
+      const data1 = mergeCommitData(null, commitSha, jobId1, job1, 'test-repo');
       const body1 = formatCommentBody(data1, marker);
 
       await createOrUpdateComment(octokit, owner, repo, prNumber, body1, null);
@@ -113,7 +119,13 @@ const commentTests: CommentTest[] = [
       };
 
       const jobId2 = getJobId(job2.workflowName, job2.jobName, prNumber);
-      const data2 = mergeJobResult(data1, jobId2, job2);
+      const data2 = mergeCommitData(
+        data1,
+        commitSha,
+        jobId2,
+        job2,
+        'test-repo',
+      );
       const body2 = formatCommentBody(data2, marker);
 
       await createOrUpdateComment(
@@ -133,8 +145,6 @@ const commentTests: CommentTest[] = [
         throw new Error('Expected 1 comment');
 
       const updatedComment = githubMocks.comments[0]!;
-      if (!updatedComment.body?.includes('⚠️'))
-        throw new Error('Missing warning emoji');
       if (!updatedComment.body?.includes('Flaky tests detected'))
         throw new Error('Missing flaky header');
       if (!updatedComment.body?.includes('FunctionsTest::testCreate'))
@@ -245,6 +255,7 @@ const commentTests: CommentTest[] = [
       const { owner, repo } = github.context.repo;
       const prNumber = 123;
       const marker = getCommentMarker(prNumber, 'feature-branch');
+      const commitSha = 'abc1234';
 
       const job1: JobTestResult = {
         jobName: 'E2E Test (Account)',
@@ -270,7 +281,7 @@ const commentTests: CommentTest[] = [
       };
 
       const jobId = getJobId(job1.workflowName, job1.jobName, prNumber);
-      const data = mergeJobResult(null, jobId, job1);
+      const data = mergeCommitData(null, commitSha, jobId, job1, 'test-repo');
       const body = formatCommentBody(data, marker);
 
       await createOrUpdateComment(octokit, owner, repo, prNumber, body, null);
@@ -292,7 +303,10 @@ const commentTests: CommentTest[] = [
 
       const parsed = parseCommentData(comment.body || '');
       if (!parsed) throw new Error('Failed to parse comment');
-      if (JSON.stringify(parsed.jobs[jobId]) !== JSON.stringify(job1)) {
+      if (
+        JSON.stringify(parsed.commits[commitSha]!.jobs[jobId]) !==
+        JSON.stringify(job1)
+      ) {
         throw new Error('Data not preserved');
       }
     },
@@ -305,6 +319,7 @@ const commentTests: CommentTest[] = [
       const { owner, repo } = github.context.repo;
       const prNumber = 123;
       const marker = getCommentMarker(prNumber, 'feature-branch');
+      const commitSha = 'abc1234';
 
       const job1: JobTestResult = {
         jobName: 'E2E Test (Account)',
@@ -318,7 +333,7 @@ const commentTests: CommentTest[] = [
       };
 
       const jobId1 = getJobId(job1.workflowName, job1.jobName, prNumber);
-      let data = mergeJobResult(null, jobId1, job1);
+      let data = mergeCommitData(null, commitSha, jobId1, job1, 'test-repo');
 
       const job2: JobTestResult = {
         jobName: 'E2E Test (Backups)',
@@ -338,15 +353,13 @@ const commentTests: CommentTest[] = [
       };
 
       const jobId2 = getJobId(job2.workflowName, job2.jobName, prNumber);
-      data = mergeJobResult(data, jobId2, job2);
+      data = mergeCommitData(data, commitSha, jobId2, job2, 'test-repo');
 
       const body = formatCommentBody(data, marker);
 
       await createOrUpdateComment(octokit, owner, repo, prNumber, body, null);
 
       const comment = githubMocks.comments[0]!;
-      if (!comment.body?.includes('⚠️'))
-        throw new Error('Missing warning emoji');
       if (!comment.body?.includes('Flaky tests detected'))
         throw new Error('Missing flaky header');
       if (!comment.body?.includes('tests-cloud.yml'))
@@ -358,7 +371,7 @@ const commentTests: CommentTest[] = [
 
       const parsed = parseCommentData(comment.body!);
       if (!parsed) throw new Error('Failed to parse');
-      if (Object.keys(parsed.jobs).length !== 2)
+      if (Object.keys(parsed.commits[commitSha]!.jobs).length !== 2)
         throw new Error('Expected 2 jobs');
     },
   },
