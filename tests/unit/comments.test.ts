@@ -8,7 +8,6 @@ import {
   getJobId,
   mergeCommitData,
   parseCommentData,
-  buildSuccessComment,
 } from '../../src/utils/comments';
 
 describe('getCommentMarker', () => {
@@ -1292,33 +1291,5 @@ describe('Details column', () => {
     expect(body).toContain('| Details |');
     // Should show dash when no URL
     expect(body).toMatch(/\|\s*-\s*\|/);
-  });
-});
-
-describe('buildSuccessComment', () => {
-  test('should build success message for single commit', () => {
-    const marker = '<!-- 123#feature#php-retry -->';
-    const body = buildSuccessComment(marker, 1);
-
-    expect(body).toContain(marker);
-    expect(body).toContain('No flaky tests detected in the last 1 commit');
-    expect(body).toContain('All tests passed on first attempt');
-  });
-
-  test('should build success message for multiple commits', () => {
-    const marker = '<!-- 123#feature#php-retry -->';
-    const body = buildSuccessComment(marker, 5);
-
-    expect(body).toContain(marker);
-    expect(body).toContain('No flaky tests detected in the last 5 commits');
-    expect(body).toContain('All tests passed on first attempt');
-  });
-
-  test('should encode null data', () => {
-    const marker = '<!-- test -->';
-    const body = buildSuccessComment(marker, 3);
-
-    const parsed = parseCommentData(body);
-    expect(parsed).toBeNull();
   });
 });

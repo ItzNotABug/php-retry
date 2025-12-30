@@ -52,21 +52,6 @@ ${content}`;
 }
 
 /**
- * Build success message when no flaky tests in recent commits
- */
-export function buildSuccessComment(
-  marker: string,
-  commitCount: number,
-): string {
-  const base64Data = encodeCommentData(null);
-  const content = `**No flaky tests detected in the last ${commitCount} commit${commitCount !== 1 ? 's' : ''}**
-
-All tests passed on first attempt.`;
-
-  return buildCommentTemplate(marker, base64Data, content);
-}
-
-/**
  * Generate unique comment identifier marker
  */
 export function getCommentMarker(prNumber?: number, branch?: string): string {

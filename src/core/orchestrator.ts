@@ -31,7 +31,6 @@ import {
   mergeCommitData,
   formatCommentBody,
   createOrUpdateComment,
-  buildSuccessComment,
   LOCAL_COMMIT_SHA,
 } from '../utils/comments.js';
 
@@ -361,6 +360,12 @@ export class TestRetryOrchestrator {
         LOCAL_COMMIT_SHA;
       const repoFullName = `${owner}/${repo}`;
 
+      // Only post comment if this job has flaky tests
+      if (jobResult.flakyTests.length === 0) {
+        core.info('No flaky tests in this job, skipping comment update');
+        return;
+      }
+
       const mergedData = mergeCommitData(
         existingData,
         commitSha,
@@ -369,13 +374,7 @@ export class TestRetryOrchestrator {
         repoFullName,
       );
 
-      const hasFlakyTests = Object.values(mergedData.commits).some((commit) =>
-        Object.values(commit.jobs).some((job) => job.flakyTests.length > 0),
-      );
-
-      const commentBody = hasFlakyTests
-        ? formatCommentBody(mergedData, marker, prNumber)
-        : buildSuccessComment(marker, Object.keys(mergedData.commits).length);
+      const commentBody = formatCommentBody(mergedData, marker, prNumber);
 
       await createOrUpdateComment(
         octokit,
