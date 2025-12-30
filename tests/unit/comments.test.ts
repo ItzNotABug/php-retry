@@ -1,6 +1,6 @@
 import '../mocks';
 import { describe, expect, test } from 'bun:test';
-import type { CommentData, JobTestResult } from '../../src/types';
+import type { CommentData, CommitData, JobTestResult } from '../../src/types';
 import {
   COMMENT_MESSAGES,
   formatCommentBody,
@@ -521,11 +521,14 @@ describe('Comment size limits', () => {
         // Strategy 1/2: Has commits with tests
         expect(parsed).not.toBeNull();
         const commitKeys = Object.keys(parsed.commits);
-        const encodedTestCount = Object.values(parsed.commits).reduce(
-          (sum: number, commit: any) =>
+        const encodedTestCount = (
+          Object.values(parsed.commits) as CommitData[]
+        ).reduce(
+          (sum: number, commit: CommitData) =>
             sum +
-            Object.values(commit.jobs).reduce(
-              (jobSum: number, job: any) => jobSum + job.flakyTests.length,
+            (Object.values(commit.jobs) as JobTestResult[]).reduce(
+              (jobSum: number, job: JobTestResult) =>
+                jobSum + job.flakyTests.length,
               0,
             ),
           0,
@@ -629,7 +632,10 @@ describe('Input validation', () => {
   });
 
   test('should throw error for missing commits data', () => {
-    const invalidData = { commits: null, repo: 'test-repo' } as any;
+    const invalidData = {
+      commits: null,
+      repo: 'test-repo',
+    } as unknown as CommentData;
     const marker = '<!-- marker -->';
 
     expect(() => formatCommentBody(invalidData, marker)).toThrow(
@@ -1204,8 +1210,8 @@ describe('Backward compatibility', () => {
         {
           name: 'Tests\\E2E\\Services\\Sites\\SitesConsoleClientTest::testSiteScreenshot',
           // Old data: missing class and method fields
-          class: undefined as any,
-          method: undefined as any,
+          class: undefined as unknown as string,
+          method: undefined as unknown as string,
           attempts: 1,
           time: 1.5,
         },

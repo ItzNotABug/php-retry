@@ -101,7 +101,7 @@ const mockOctokit = {
       ),
     },
   },
-  paginate: mock(async (fn: any) => {
+  paginate: mock(async <T>(fn: () => Promise<{ data: T }>) => {
     githubMocks.paginateCallCount++;
     const result = await fn();
     return result.data;
