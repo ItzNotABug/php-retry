@@ -15,6 +15,9 @@ const BASE64_SPACE_RATIO = 0.5; // Reserve 50% of space for base64 data overhead
 
 export const LOCAL_COMMIT_SHA = 'abc1234567890def1234567890abcdef12345678'; // Fallback for local testing
 
+// Maximum random delay (in ms)
+export const MAX_COMMENT_DELAY_MS = 10000; // 10 seconds
+
 /**
  * Comment message constants
  */

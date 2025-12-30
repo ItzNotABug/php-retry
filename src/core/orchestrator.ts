@@ -9,6 +9,7 @@ import { DependencyResolver } from '../parsers/dependency.js';
 import { CommandBuilder } from '../builders/command.js';
 import {
   wait,
+  randomDelay,
   findTestFileInWorkspace,
   extractFileFromContainer,
   isDockerCommand,
@@ -32,6 +33,7 @@ import {
   formatCommentBody,
   createOrUpdateComment,
   LOCAL_COMMIT_SHA,
+  MAX_COMMENT_DELAY_MS,
 } from '../utils/comments.js';
 
 export class TestRetryOrchestrator {
@@ -334,6 +336,21 @@ export class TestRetryOrchestrator {
         prNumber,
       );
 
+      // Only post comment if this job has flaky tests
+      if (jobResult.flakyTests.length === 0) {
+        core.info('No flaky tests in this job, skipping comment update');
+        return;
+      }
+
+      // For PRs, use the head SHA instead of the merge commit SHA
+      const commitSha =
+        context.payload.pull_request?.head.sha ||
+        context.sha ||
+        LOCAL_COMMIT_SHA;
+      const repoFullName = `${owner}/${repo}`;
+
+      await randomDelay(MAX_COMMENT_DELAY_MS);
+
       const existingCommentId = await findExistingComment(
         octokit,
         owner,
@@ -351,19 +368,6 @@ export class TestRetryOrchestrator {
         });
 
         existingData = parseCommentData(comment.body || '');
-      }
-
-      // For PRs, use the head SHA instead of the merge commit SHA
-      const commitSha =
-        context.payload.pull_request?.head.sha ||
-        context.sha ||
-        LOCAL_COMMIT_SHA;
-      const repoFullName = `${owner}/${repo}`;
-
-      // Only post comment if this job has flaky tests
-      if (jobResult.flakyTests.length === 0) {
-        core.info('No flaky tests in this job, skipping comment update');
-        return;
       }
 
       const mergedData = mergeCommitData(
