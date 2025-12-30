@@ -3,7 +3,8 @@
 Intelligently retries failed PHPUnit tests with their dependencies instead of running the full test suite.
 
 **Please note that this action is not a drop-in replacement for standard PHPUnit retries.**  
-**Originally designed for Appwrite Cloud's internal test infrastructure and may require minor adjustments for other setups.**
+**Originally designed for Appwrite Cloud's internal test infrastructure and may require minor adjustments for other
+setups.**
 
 ## Usage
 
@@ -34,15 +35,16 @@ Intelligently retries failed PHPUnit tests with their dependencies instead of ru
 
 ## Inputs
 
-| Input                | Required | Default               | Description                                                    |
-|----------------------|----------|-----------------------|----------------------------------------------------------------|
-| `command`            | Yes      | -                     | PHPUnit command to execute                                     |
-| `test_dir`           | Yes      | -                     | Test directory in workspace                                    |
-| `max_attempts`       | No       | `3`                   | Maximum retry attempts (1-10)                                  |
-| `retry_wait_seconds` | No       | `10`                  | Seconds to wait between retries                                |
-| `shell`              | No       | `bash`                | Shell: `bash`, `sh`, `pwsh`, `python`, `cmd`, `powershell`     |
-| `timeout_minutes`    | No       | `30`                  | Timeout per attempt (0 = no timeout)                           |
-| `github_token`       | No       | `${{ github.token }}` | GitHub token for PR comments (requires `pull-requests: write`) |
+| Input                | Required | Default | Description                                                                        |
+|----------------------|----------|---------|------------------------------------------------------------------------------------|
+| `command`            | Yes      | -       | PHPUnit command to execute                                                         |
+| `test_dir`           | Yes      | -       | Test directory in workspace                                                        |
+| `max_attempts`       | No       | `3`     | Maximum retry attempts (1-10)                                                      |
+| `retry_wait_seconds` | No       | `10`    | Seconds to wait between retries                                                    |
+| `shell`              | No       | `bash`  | Shell: `bash`, `sh`, `pwsh`, `python`, `cmd`, `powershell`                         |
+| `timeout_minutes`    | No       | `30`    | Timeout per attempt (0 = no timeout)                                               |
+| `github_token`       | No       | -       | GitHub token for PR comments (requires `pull-requests: write` and `content: read`) |
+| `job_id`             | No       | -       | Job ID to build URLs for Job logs                                                  |
 
 ## Notes
 
