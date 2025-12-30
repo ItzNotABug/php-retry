@@ -184,7 +184,7 @@ export function mergeCommitData(
       new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime(),
   );
 
-  const recentCommits = sortedEntries.slice(0, MAX_COMMITS).reverse();
+  const recentCommits = sortedEntries.slice(0, MAX_COMMITS);
 
   return {
     commits: Object.fromEntries(recentCommits),
@@ -433,10 +433,10 @@ export function formatCommentBody(
     throw new Error('data.commits is required');
   }
 
-  // Sort commits by timestamp (newest first)
+  // Sort commits by timestamp (oldest first)
   const sortedCommits = Object.entries(data.commits).sort(
     ([, a], [, b]) =>
-      new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime(),
+      new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime(),
   );
 
   if (sortedCommits.length === 0) {
