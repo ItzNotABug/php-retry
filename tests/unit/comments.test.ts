@@ -1254,7 +1254,7 @@ describe('Details column', () => {
     expect(body).toContain('| Details |');
     // Should have link to workflow run (HTML format with target="_blank")
     expect(body).toContain(
-      '<a href="https://github.com/owner/repo/actions/runs/123/job/456" target="_blank">View Run</a>',
+      '<a href="https://github.com/owner/repo/actions/runs/123/job/456" target="_blank">Logs</a>',
     );
   });
 

@@ -255,8 +255,8 @@ function buildCommitSection(
 
 <br>
 
-| Test | Attempts | Total Time | Details |
-|------|----------|------------|---------|
+| Test | Retries | Total Time | Details |
+|------|---------|------------|---------|
 `;
 
   let testsShown = 0;
@@ -279,7 +279,7 @@ function buildCommitSection(
     const testCell = `\`${escapedTestName}\``;
     const timeStr = formatDuration(test.time);
     const linkCell = runUrl
-      ? `<a href="${runUrl}" target="_blank">View Run</a>`
+      ? `<a href="${runUrl}" target="_blank">Logs</a>`
       : '-';
     const row = `| ${testCell} | ${test.attempts} | ${timeStr} | ${linkCell} |\n`;
 
