@@ -184,7 +184,7 @@ export function mergeCommitData(
       new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime(),
   );
 
-  const recentCommits = sortedEntries.slice(0, MAX_COMMITS);
+  const recentCommits = sortedEntries.slice(0, MAX_COMMITS).reverse();
 
   return {
     commits: Object.fromEntries(recentCommits),
