@@ -338,7 +338,7 @@ export class TestRetryOrchestrator {
 
       // Only post comment if this job has flaky tests
       if (jobResult.flakyTests.length === 0) {
-        core.info('No flaky tests in this job, skipping comment update');
+        core.debug('No flaky tests in this job, skipping comment update');
         return;
       }
 
