@@ -42,6 +42,7 @@ export function getInputs(): ActionInputs {
   const testDir = core.getInput('test_dir', { required: true });
   const shell = core.getInput('shell') || 'bash';
   const githubToken = core.getInput('github_token') || undefined;
+  const jobId = core.getInput('job_id') || undefined;
 
   const maxAttempts = getInputNumber('max_attempts', false, 3)!;
   const retryWaitSeconds = getInputNumber('retry_wait_seconds', false, 10)!;
@@ -59,5 +60,6 @@ export function getInputs(): ActionInputs {
     timeoutMinutes,
     testDir,
     githubToken,
+    jobId,
   };
 }

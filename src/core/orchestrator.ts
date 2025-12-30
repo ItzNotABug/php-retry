@@ -223,13 +223,48 @@ export class TestRetryOrchestrator {
     });
   }
 
-  private buildJobTestResult(
+  private async fetchJobId(jobName: string): Promise<string | undefined> {
+    if (this.inputs.jobId) {
+      // user provided
+      return this.inputs.jobId;
+    }
+
+    if (!this.inputs.githubToken || jobName === 'unknown-job') {
+      return undefined;
+    }
+
+    try {
+      const context = github.context;
+
+      if (!context.runId) {
+        return undefined;
+      }
+
+      const octokit = github.getOctokit(this.inputs.githubToken);
+      const { data } = await octokit.rest.actions.listJobsForWorkflowRun({
+        owner: context.repo.owner,
+        repo: context.repo.repo,
+        run_id: context.runId,
+      });
+
+      const job = data.jobs.find(
+        (job) => job.name === jobName || job.name.startsWith(`${jobName} (`),
+      );
+
+      return job ? job.id.toString() : undefined;
+    } catch (error) {
+      core.debug(`Failed to fetch job ID: ${error}`);
+      return undefined;
+    }
+  }
+
+  private async buildJobTestResult(
     failedTests: FailedTest[],
     attempt: number,
     retriedCount: number,
     testAttemptCounts: Map<string, number>,
     flakyTests: FlakyTest[],
-  ): JobTestResult {
+  ): Promise<JobTestResult> {
     const workflowName = process.env.GITHUB_WORKFLOW || 'unknown-workflow';
     const jobName = process.env.GITHUB_JOB || 'unknown-job';
 
@@ -238,6 +273,19 @@ export class TestRetryOrchestrator {
       attempts: testAttemptCounts.get(test.name) ?? attempt,
       error: test.error,
     }));
+
+    // Build workflow run URL
+    const context = github.context;
+    let runUrl: string | undefined;
+    try {
+      if (context.serverUrl && context.runId && context.repo) {
+        const baseUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+        const numericJobId = await this.fetchJobId(jobName);
+        runUrl = numericJobId ? `${baseUrl}/job/${numericJobId}` : baseUrl;
+      }
+    } catch (error) {
+      core.debug(`Failed to build run URL: ${error}`);
+    }
 
     return {
       jobName,
@@ -248,6 +296,7 @@ export class TestRetryOrchestrator {
       failedTests: failedTestsData,
       flakyTests,
       retriedCount,
+      runUrl,
     };
   }
 
@@ -601,7 +650,7 @@ export class TestRetryOrchestrator {
       (sum, stat) => sum + stat.retried,
       0,
     );
-    const jobResult = this.buildJobTestResult(
+    const jobResult = await this.buildJobTestResult(
       failedTests,
       attempt,
       totalRetried,

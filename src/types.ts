@@ -6,6 +6,7 @@ export interface ActionInputs {
   timeoutMinutes: number;
   testDir: string;
   githubToken?: string;
+  jobId?: string;
 }
 
 export interface FailedTest {
@@ -86,6 +87,7 @@ export interface JobTestResult {
   }>;
   flakyTests: FlakyTest[];
   retriedCount: number;
+  runUrl?: string; // Workflow run URL
 }
 
 /**

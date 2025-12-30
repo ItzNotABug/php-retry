@@ -224,6 +224,7 @@ function buildCommitSection(
     workflowName: string;
     jobName: string;
     jobId: string;
+    runUrl?: string;
   }> = [];
 
   for (const [jobId, job] of Object.entries(commitData.jobs)) {
@@ -234,6 +235,7 @@ function buildCommitSection(
         workflowName: job.workflowName,
         jobName: job.jobName,
         jobId,
+        runUrl: job.runUrl,
       });
     }
   }
@@ -265,15 +267,15 @@ function buildCommitSection(
 
 <br>
 
-| Test | Attempts | Total Time |
-|------|----------|------------|
+| Test | Attempts | Total Time | Details |
+|------|----------|------------|---------|
 `;
 
   let testsShown = 0;
   let truncated = false;
   const displayedTests = new Set<string>();
 
-  for (const { test, workflowName, jobName, jobId } of flakyTests) {
+  for (const { test, workflowName, jobName, jobId, runUrl } of flakyTests) {
     // Handle backward compatibility:
     // if class/method don't exist, parse from name
     let shortTestName: string;
@@ -290,7 +292,8 @@ function buildCommitSection(
     const escapedJob = escapeMarkdownTableCell(jobName);
     const testCell = `\`${escapedTestName}\` [${escapedWorkflow} / ${escapedJob}]`;
     const timeStr = formatDuration(test.time);
-    const row = `| ${testCell} | ${test.attempts} | ${timeStr} |\n`;
+    const linkCell = runUrl ? `[View Run](${runUrl})` : '-';
+    const row = `| ${testCell} | ${test.attempts} | ${timeStr} | ${linkCell} |\n`;
 
     if (maxSize && Buffer.byteLength(section + row, 'utf-8') > maxSize) {
       truncated = true;
