@@ -380,10 +380,6 @@ const commentTests: CommentTest[] = [
       const comment = githubMocks.comments[0]!;
       if (!comment.body?.includes('Flaky tests detected'))
         throw new Error('Missing flaky header');
-      if (!comment.body?.includes('tests-cloud.yml'))
-        throw new Error('Missing workflow name');
-      if (!comment.body?.includes('E2E Test (Backups)'))
-        throw new Error('Missing job name');
       if (!comment.body?.includes('BackupTest::testRestore'))
         throw new Error('Missing test name');
 

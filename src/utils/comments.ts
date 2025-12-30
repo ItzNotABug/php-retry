@@ -275,7 +275,7 @@ function buildCommitSection(
   let truncated = false;
   const displayedTests = new Set<string>();
 
-  for (const { test, workflowName, jobName, jobId, runUrl } of flakyTests) {
+  for (const { test, jobId, runUrl } of flakyTests) {
     // Handle backward compatibility:
     // if class/method don't exist, parse from name
     let shortTestName: string;
@@ -288,11 +288,11 @@ function buildCommitSection(
         : test.name;
     }
     const escapedTestName = escapeMarkdownTableCell(shortTestName);
-    const escapedWorkflow = escapeMarkdownTableCell(workflowName);
-    const escapedJob = escapeMarkdownTableCell(jobName);
-    const testCell = `\`${escapedTestName}\` [${escapedWorkflow} / ${escapedJob}]`;
+    const testCell = `\`${escapedTestName}\``;
     const timeStr = formatDuration(test.time);
-    const linkCell = runUrl ? `[View Run](${runUrl})` : '-';
+    const linkCell = runUrl
+      ? `<a href="${runUrl}" target="_blank">View Run</a>`
+      : '-';
     const row = `| ${testCell} | ${test.attempts} | ${timeStr} | ${linkCell} |\n`;
 
     if (maxSize && Buffer.byteLength(section + row, 'utf-8') > maxSize) {

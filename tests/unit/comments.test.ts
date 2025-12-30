@@ -305,8 +305,6 @@ describe('formatCommentBody', () => {
     expect(body).toContain('Flaky tests detected');
     expect(body).toContain('FunctionsTest::testCreate');
     expect(body).toContain('FunctionsTest::testUpdate');
-    expect(body).toContain('tests-appwrite.yml');
-    expect(body).toContain('E2E Test (Functions)');
     expect(body).toContain('4.10s'); // Cumulative time
     expect(body).toContain('2.50s');
   });
@@ -355,8 +353,6 @@ describe('formatCommentBody', () => {
     const body = formatCommentBody(data, marker);
 
     expect(body).toContain('Flaky tests detected');
-    expect(body).toContain('tests-cloud.yml');
-    expect(body).toContain('E2E Test (Backups)');
     expect(body).toContain('BackupTest::testRestore');
     expect(body).toContain('3.20s');
   });
@@ -813,8 +809,6 @@ describe('Comment workflow scenarios', () => {
 
       // Should show flaky tests
       expect(body).toContain('Flaky tests detected');
-      expect(body).toContain('tests-appwrite.yml');
-      expect(body).toContain('E2E Test (Functions)');
       expect(body).toContain('FunctionsTest::testCreate');
       expect(body).toContain('FunctionsTest::testUpdate');
       expect(body).toContain('5.20s');
@@ -838,7 +832,6 @@ describe('Comment workflow scenarios', () => {
 
       // Job 3 has no flaky tests, so comment still only shows job2's flaky tests
       expect(body).toContain('Flaky tests detected');
-      expect(body).toContain('tests-appwrite.yml');
 
       // Verify we can parse it back
       const parsed = parseCommentData(body);
@@ -969,8 +962,6 @@ describe('Comment workflow scenarios', () => {
       const body = formatCommentBody(data, getCommentMarker(123));
 
       // Pipes should be escaped in table output
-      expect(body).toContain('tests \\| ci.yml');
-      expect(body).toContain('E2E \\| Integration Test');
       expect(body).toContain('Test\\|With\\|Pipes');
 
       // But data should preserve original values
@@ -1227,6 +1218,80 @@ describe('Backward compatibility', () => {
     // Should fall back to parsing from name
     expect(body).toContain('SitesConsoleClientTest::testSiteScreenshot');
     expect(body).not.toContain('undefined::undefined');
+  });
+});
+
+describe('Details column', () => {
+  test('should include Details column with link when runUrl is present', () => {
+    const marker = '<!-- 123#main#php-retry -->';
+    const prNumber = 123;
+
+    const job: JobTestResult = {
+      jobName: 'E2E Test',
+      workflowName: 'tests.yml',
+      attempt: 2,
+      maxAttempts: 3,
+      status: 'passed',
+      failedTests: [],
+      flakyTests: [
+        {
+          name: 'TestClass::testMethod',
+          class: 'TestClass',
+          method: 'testMethod',
+          attempts: 2,
+          time: 1.5,
+        },
+      ],
+      retriedCount: 1,
+      runUrl: 'https://github.com/owner/repo/actions/runs/123/job/456',
+    };
+
+    const commitSha = 'abc1234';
+    const jobId = getJobId(job.workflowName, job.jobName, prNumber);
+    const data = mergeCommitData(null, commitSha, jobId, job, 'test-repo');
+    const body = formatCommentBody(data, marker, prNumber);
+
+    // Should have Details column header
+    expect(body).toContain('| Details |');
+    // Should have link to workflow run (HTML format with target="_blank")
+    expect(body).toContain(
+      '<a href="https://github.com/owner/repo/actions/runs/123/job/456" target="_blank">View Run</a>',
+    );
+  });
+
+  test('should show dash in Details column when runUrl is absent', () => {
+    const marker = '<!-- 123#main#php-retry -->';
+    const prNumber = 123;
+
+    const job: JobTestResult = {
+      jobName: 'E2E Test',
+      workflowName: 'tests.yml',
+      attempt: 2,
+      maxAttempts: 3,
+      status: 'passed',
+      failedTests: [],
+      flakyTests: [
+        {
+          name: 'TestClass::testMethod',
+          class: 'TestClass',
+          method: 'testMethod',
+          attempts: 2,
+          time: 1.5,
+        },
+      ],
+      retriedCount: 1,
+      // No runUrl
+    };
+
+    const commitSha = 'abc1234';
+    const jobId = getJobId(job.workflowName, job.jobName, prNumber);
+    const data = mergeCommitData(null, commitSha, jobId, job, 'test-repo');
+    const body = formatCommentBody(data, marker, prNumber);
+
+    // Should have Details column header
+    expect(body).toContain('| Details |');
+    // Should show dash when no URL
+    expect(body).toMatch(/\|\s*-\s*\|/);
   });
 });
 
