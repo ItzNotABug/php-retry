@@ -274,7 +274,17 @@ function buildCommitSection(
   const displayedTests = new Set<string>();
 
   for (const { test, workflowName, jobName, jobId } of flakyTests) {
-    const shortTestName = `${test.class}::${test.method}`;
+    // Handle backward compatibility:
+    // if class/method don't exist, parse from name
+    let shortTestName: string;
+    if (test.class && test.method) {
+      shortTestName = `${test.class}::${test.method}`;
+    } else {
+      // Fallback: extract class::method from full name
+      shortTestName = test.name.includes('::')
+        ? test.name.split(/[\\\/]/).pop() || test.name
+        : test.name;
+    }
     const escapedTestName = escapeMarkdownTableCell(shortTestName);
     const escapedWorkflow = escapeMarkdownTableCell(workflowName);
     const escapedJob = escapeMarkdownTableCell(jobName);

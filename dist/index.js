@@ -82,7 +82,7 @@ All tests passed on first attempt.`;return UC(A,B,I)}function WW(A,Q){let B=[];i
 
 | Test | Attempts | Total Time |
 |------|----------|------------|
-`,U=0,N=!1,G=new Set;for(let{test:R,workflowName:V,jobName:X,jobId:z}of C){let y=`${R.class}::${R.method}`,FA=QD(y),CA=QD(V),YA=QD(X),$A=`\`${FA}\` [${CA} / ${YA}]`,KA=lT(R.time),zA=`| ${$A} | ${R.attempts} | ${KA} |
+`,U=0,N=!1,G=new Set;for(let{test:R,workflowName:V,jobName:X,jobId:z}of C){let y;if(R.class&&R.method)y=`${R.class}::${R.method}`;else y=R.name.includes("::")?R.name.split(/[\\\/]/).pop()||R.name:R.name;let FA=QD(y),CA=QD(V),YA=QD(X),$A=`\`${FA}\` [${CA} / ${YA}]`,KA=lT(R.time),zA=`| ${$A} | ${R.attempts} | ${KA} |
 `;if(E&&Buffer.byteLength(D+zA,"utf-8")>E){N=!0;break}D+=zA,U++,G.add(`${z}:${R.name}`)}if(N){let R=C.length-U;D+=`
 *Comment truncated: ${R} more flaky test(s) not shown due to size limits*
 `}D+=`

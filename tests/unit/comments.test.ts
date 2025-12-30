@@ -1188,6 +1188,42 @@ describe('Comment workflow scenarios', () => {
   });
 });
 
+describe('Backward compatibility', () => {
+  test('should handle old flaky test data without class/method fields', () => {
+    const marker = '<!-- 123#main#php-retry -->';
+    const prNumber = 123;
+
+    const job: JobTestResult = {
+      jobName: 'E2E Test',
+      workflowName: 'tests.yml',
+      attempt: 2,
+      maxAttempts: 3,
+      status: 'passed',
+      failedTests: [],
+      flakyTests: [
+        {
+          name: 'Tests\\E2E\\Services\\Sites\\SitesConsoleClientTest::testSiteScreenshot',
+          // Old data: missing class and method fields
+          class: undefined as any,
+          method: undefined as any,
+          attempts: 1,
+          time: 1.5,
+        },
+      ],
+      retriedCount: 1,
+    };
+
+    const commitSha = 'abc1234';
+    const jobId = getJobId(job.workflowName, job.jobName, prNumber);
+    const data = mergeCommitData(null, commitSha, jobId, job, 'test-repo');
+    const body = formatCommentBody(data, marker, prNumber);
+
+    // Should fall back to parsing from name
+    expect(body).toContain('SitesConsoleClientTest::testSiteScreenshot');
+    expect(body).not.toContain('undefined::undefined');
+  });
+});
+
 describe('buildSuccessComment', () => {
   test('should build success message for single commit', () => {
     const marker = '<!-- 123#feature#php-retry -->';
