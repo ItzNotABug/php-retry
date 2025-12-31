@@ -28,6 +28,12 @@ inputs:
   test_dir:
     description: 'Base directory for test files in workspace (e.g., "tests" or "vendor/appwrite/server-ce/tests")'
     required: true
+  github_token:
+    description: 'GitHub token for posting PR comments with test summary. Ensure workflow/job has permissions: contents: read, pull-requests: write'
+    required: false
+  job_id:
+    description: 'GitHub Actions job ID for linking to specific workflow run job (optional, will auto-fetch if github_token has actions: read permission, or pass job ID explicitly)'
+    required: false
 
 outputs:
   total_attempts:

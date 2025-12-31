@@ -2,4 +2,4 @@ services:
   phpunit-retry:
     build: .
     container_name: phpunit-retry-test
-    command: ["tail", "-f", "/dev/null"]
+    command: ['tail', '-f', '/dev/null']

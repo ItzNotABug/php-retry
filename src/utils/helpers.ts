@@ -4,11 +4,22 @@ import * as fs from 'fs';
 import * as os from 'os';
 import { spawnSync } from 'child_process';
 
-export async function wait(ms: number): Promise<void> {
+export async function wait(ms: number, debug = true): Promise<void> {
   const waitStart = Date.now();
   await new Promise((resolve) => setTimeout(resolve, ms));
-  const actualWait = Date.now() - waitStart;
-  core.debug(`Waited ${actualWait}ms (configured: ${ms}ms)`);
+  if (debug) {
+    const actualWait = Date.now() - waitStart;
+    core.debug(`Waited ${actualWait}ms (configured: ${ms}ms)`);
+  }
+}
+
+/**
+ * Sleep for a random duration to avoid race conditions when multiple jobs
+ * update the same resource simultaneously.
+ */
+export async function randomDelay(maxMs: number): Promise<void> {
+  const delayMs = Math.floor(Math.random() * maxMs);
+  await wait(delayMs, false);
 }
 
 export function validatePlatform(): void {

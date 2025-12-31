@@ -10,8 +10,8 @@
   "scripts": {
     "prebuild": "bun check",
     "build": "bun build ./src/index.ts --minify --target node --format cjs --outdir ./dist",
-    "format": "prettier --write 'src/**/*.ts'",
-    "lint": "prettier --check 'src/**/*.ts'",
+    "format": "prettier --write '{src,tests}/**/*.ts'",
+    "lint": "prettier --check '{src,tests}/**/*.ts'",
     "test": "bun test",
     "test:unit": "bun test tests/unit/",
     "test:integration": "bun run tests/integration/index.ts",
@@ -27,6 +27,7 @@
   "dependencies": {
     "@actions/core": "^2.0.1",
     "@actions/exec": "^2.0.0",
+    "@actions/github": "^6.0.0",
     "fast-xml-parser": "^5.3.3",
     "tree-kill": "^1.2.2"
   }

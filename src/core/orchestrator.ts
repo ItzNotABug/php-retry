@@ -1,4 +1,5 @@
 import * as core from '@actions/core';
+import * as github from '@actions/github';
 import { spawn } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -8,6 +9,7 @@ import { DependencyResolver } from '../parsers/dependency.js';
 import { CommandBuilder } from '../builders/command.js';
 import {
   wait,
+  randomDelay,
   findTestFileInWorkspace,
   extractFileFromContainer,
   isDockerCommand,
@@ -19,7 +21,20 @@ import type {
   FailedTest,
   AttemptStat,
   FirstAttemptStats,
+  JobTestResult,
+  FlakyTest,
 } from '../types.js';
+import {
+  getCommentMarker,
+  getJobId,
+  findExistingComment,
+  parseCommentData,
+  mergeCommitData,
+  formatCommentBody,
+  createOrUpdateComment,
+  LOCAL_COMMIT_SHA,
+  MAX_COMMENT_DELAY_MS,
+} from '../utils/comments.js';
 
 export class TestRetryOrchestrator {
   private readonly inputs: ActionInputs;
@@ -209,6 +224,185 @@ export class TestRetryOrchestrator {
     });
   }
 
+  private async fetchJobId(jobName: string): Promise<string | undefined> {
+    if (this.inputs.jobId) {
+      // user provided
+      return this.inputs.jobId;
+    }
+
+    if (!this.inputs.githubToken || jobName === 'unknown-job') {
+      return undefined;
+    }
+
+    try {
+      const context = github.context;
+
+      if (!context.runId) {
+        return undefined;
+      }
+
+      const octokit = github.getOctokit(this.inputs.githubToken);
+      const { data } = await octokit.rest.actions.listJobsForWorkflowRun({
+        owner: context.repo.owner,
+        repo: context.repo.repo,
+        run_id: context.runId,
+      });
+
+      const job = data.jobs.find((job) => {
+        const trimmedJobName = job.name.trim();
+        const trimmedInputName = jobName.trim();
+
+        // Match exact name or matrix job name
+        // e.g., "test (php-8.1)" or "test(config)"
+        const pattern = new RegExp(`^${trimmedInputName}\\s*\\(`);
+
+        return (
+          trimmedJobName === trimmedInputName || pattern.test(trimmedJobName)
+        );
+      });
+
+      return job ? job.id.toString() : undefined;
+    } catch (error) {
+      core.debug(`Failed to fetch job ID: ${error}`);
+      return undefined;
+    }
+  }
+
+  private async buildJobTestResult(
+    failedTests: FailedTest[],
+    attempt: number,
+    retriedCount: number,
+    testAttemptCounts: Map<string, number>,
+    flakyTests: FlakyTest[],
+  ): Promise<JobTestResult> {
+    const workflowName = process.env.GITHUB_WORKFLOW || 'unknown-workflow';
+    const jobName = process.env.GITHUB_JOB || 'unknown-job';
+
+    const failedTestsData = failedTests.map((test) => ({
+      name: test.name,
+      attempts: testAttemptCounts.get(test.name) ?? attempt,
+      error: test.error,
+    }));
+
+    // Build workflow run URL
+    const context = github.context;
+    let runUrl: string | undefined;
+    try {
+      if (context.serverUrl && context.runId && context.repo) {
+        const baseUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+        const numericJobId = await this.fetchJobId(jobName);
+        runUrl = numericJobId ? `${baseUrl}/job/${numericJobId}` : baseUrl;
+      }
+    } catch (error) {
+      core.debug(`Failed to build run URL: ${error}`);
+    }
+
+    return {
+      jobName,
+      workflowName,
+      attempt,
+      maxAttempts: this.inputs.maxAttempts,
+      status: failedTests.length === 0 ? 'passed' : 'failed',
+      failedTests: failedTestsData,
+      flakyTests,
+      retriedCount,
+      runUrl,
+    };
+  }
+
+  private async postPRComment(jobResult: JobTestResult): Promise<void> {
+    // Only post comments in PR context
+    if (!this.inputs.githubToken) {
+      core.warning('Skipping PR comment: GitHub token not available');
+      return;
+    }
+
+    if (process.env.GITHUB_EVENT_NAME !== 'pull_request') {
+      core.info(
+        `Skipping PR comment: not in pull request context (event: ${process.env.GITHUB_EVENT_NAME || 'unknown'})`,
+      );
+      return;
+    }
+
+    try {
+      const context = github.context;
+      const prNumber = context.payload.pull_request?.number;
+      // Use GITHUB_HEAD_REF for PR events
+      const branch = process.env.GITHUB_HEAD_REF || '';
+
+      if (!prNumber) {
+        core.warning('Could not determine PR number, skipping comment');
+        return;
+      }
+
+      const octokit = github.getOctokit(this.inputs.githubToken);
+      const { owner, repo } = context.repo;
+
+      const marker = getCommentMarker(prNumber, branch);
+      const jobId = getJobId(
+        jobResult.workflowName,
+        jobResult.jobName,
+        prNumber,
+      );
+
+      // Only post comment if this job has flaky tests
+      if (jobResult.flakyTests.length === 0) {
+        core.debug('No flaky tests in this job, skipping comment update');
+        return;
+      }
+
+      // For PRs, use the head SHA instead of the merge commit SHA
+      const commitSha =
+        context.payload.pull_request?.head.sha ||
+        context.sha ||
+        LOCAL_COMMIT_SHA;
+      const repoFullName = `${owner}/${repo}`;
+
+      await randomDelay(MAX_COMMENT_DELAY_MS);
+
+      const existingCommentId = await findExistingComment(
+        octokit,
+        owner,
+        repo,
+        prNumber,
+        marker,
+      );
+
+      let existingData = null;
+      if (existingCommentId) {
+        const { data: comment } = await octokit.rest.issues.getComment({
+          owner,
+          repo,
+          comment_id: existingCommentId,
+        });
+
+        existingData = parseCommentData(comment.body || '');
+      }
+
+      const mergedData = mergeCommitData(
+        existingData,
+        commitSha,
+        jobId,
+        jobResult,
+        repoFullName,
+      );
+
+      const commentBody = formatCommentBody(mergedData, marker, prNumber);
+
+      await createOrUpdateComment(
+        octokit,
+        owner,
+        repo,
+        prNumber,
+        commentBody,
+        existingCommentId,
+      );
+    } catch (error) {
+      core.warning(`Failed to post PR comment: ${error}`);
+      // Don't fail the action if comment posting fails
+    }
+  }
+
   private displayTestSummary(
     exitCode: number,
     attempt: number,
@@ -268,9 +462,12 @@ export class TestRetryOrchestrator {
     let attempt = 1;
     let exitCode = 0;
     let failedTests: FailedTest[] = [];
+    let previousFailedTests: FailedTest[] = []; // Track previous attempt's failures
     let dependenciesParsed = false;
     let firstAttemptStats: FirstAttemptStats | null = null;
     let attemptStats: AttemptStat[] = [];
+    const testAttemptCounts = new Map<string, number>(); // Track attempts per test
+    const testCumulativeTiming = new Map<string, number>(); // Track cumulative time per test
 
     // Use absolute path for JUnit XML to handle commands that change directories
     // Falls back to current directory if GITHUB_WORKSPACE is not set (for local testing)
@@ -389,6 +586,15 @@ export class TestRetryOrchestrator {
 
         failedTests = this.parser.parseXMLFile(localJunitPath);
 
+        // Track attempt count and cumulative timing for each failed test
+        for (const test of failedTests) {
+          testAttemptCounts.set(test.name, attempt);
+
+          // Accumulate timing across attempts
+          const currentTime = testCumulativeTiming.get(test.name) || 0;
+          testCumulativeTiming.set(test.name, currentTime + (test.time || 0));
+        }
+
         if (attempt === 1) {
           firstAttemptStats = this.parser.getTestStats(localJunitPath);
         }
@@ -416,6 +622,9 @@ export class TestRetryOrchestrator {
           break;
         }
 
+        // Save current failures
+        previousFailedTests = [...failedTests];
+
         core.info('');
         core.info(`Waiting ${this.inputs.retryWaitSeconds}s before retry...`);
         await wait(this.inputs.retryWaitSeconds * 1000);
@@ -429,6 +638,38 @@ export class TestRetryOrchestrator {
     }
 
     this.displayTestSummary(exitCode, attempt, firstAttemptStats, attemptStats);
+
+    // Detect flaky tests:
+    // tests that failed on previous attempts but passed on final attempt
+    const flakyTests: FlakyTest[] = [];
+
+    if (exitCode === 0 && previousFailedTests.length > 0) {
+      // Tests passed overall,
+      // so any test that was in previousFailedTests is now flaky
+      for (const prevTest of previousFailedTests) {
+        flakyTests.push({
+          name: prevTest.name,
+          class: prevTest.class,
+          method: prevTest.method,
+          attempts: testAttemptCounts.get(prevTest.name) || attempt,
+          time: testCumulativeTiming.get(prevTest.name) || 0,
+        });
+      }
+    }
+
+    // Post PR comment with test summary
+    const totalRetried = attemptStats.reduce(
+      (sum, stat) => sum + stat.retried,
+      0,
+    );
+    const jobResult = await this.buildJobTestResult(
+      failedTests,
+      attempt,
+      totalRetried,
+      testAttemptCounts,
+      flakyTests,
+    );
+    await this.postPRComment(jobResult);
 
     core.setOutput('total_attempts', attempt);
     core.setOutput('exit_code', exitCode);
