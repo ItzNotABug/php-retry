@@ -248,9 +248,18 @@ export class TestRetryOrchestrator {
         run_id: context.runId,
       });
 
-      const job = data.jobs.find(
-        (job) => job.name === jobName || job.name.startsWith(`${jobName} (`),
-      );
+      const job = data.jobs.find((job) => {
+        const trimmedJobName = job.name.trim();
+        const trimmedInputName = jobName.trim();
+
+        // Match exact name or matrix job name
+        // e.g., "test (php-8.1)" or "test(config)"
+        const pattern = new RegExp(`^${trimmedInputName}\\s*\\(`);
+
+        return (
+          trimmedJobName === trimmedInputName || pattern.test(trimmedJobName)
+        );
+      });
 
       return job ? job.id.toString() : undefined;
     } catch (error) {
