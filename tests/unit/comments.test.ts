@@ -1293,3 +1293,180 @@ describe('Details column', () => {
     expect(body).toMatch(/\|\s*-\s*\|/);
   });
 });
+
+describe('Validation and Security', () => {
+  test('should handle invalid repo format gracefully', () => {
+    const marker = '<!-- 123#main#php-retry -->';
+    const prNumber = 123;
+    const commitSha = 'abcdef1234567890abcdef1234567890abcdef12';
+    const invalidRepo = 'invalid-repo-format'; // Missing owner/
+
+    const job: JobTestResult = {
+      jobName: 'Test Job',
+      workflowName: 'Test Workflow',
+      attempt: 1,
+      maxAttempts: 3,
+      status: 'passed',
+      failedTests: [],
+      flakyTests: [
+        {
+          name: 'TestClass::testMethod',
+          class: 'TestClass',
+          method: 'testMethod',
+          attempts: 1,
+          time: 1.0,
+        },
+      ],
+      retriedCount: 0,
+    };
+
+    const jobId = getJobId(job.workflowName, job.jobName, prNumber);
+    const data = mergeCommitData(null, commitSha, jobId, job, invalidRepo);
+    const body = formatCommentBody(data, marker, prNumber);
+
+    // Should not generate link for invalid repo
+    expect(body).not.toContain(`https://github.com/${invalidRepo}`);
+    // Should still show commit SHA as code
+    expect(body).toContain(`<code>${commitSha.substring(0, 7)}</code>`);
+  });
+
+  test('should handle invalid commit SHA gracefully', () => {
+    const marker = '<!-- 123#main#php-retry -->';
+    const prNumber = 123;
+    const invalidCommitSha = 'not-a-valid-sha'; // Too short, not hex
+
+    const job: JobTestResult = {
+      jobName: 'Test Job',
+      workflowName: 'Test Workflow',
+      attempt: 1,
+      maxAttempts: 3,
+      status: 'passed',
+      failedTests: [],
+      flakyTests: [
+        {
+          name: 'TestClass::testMethod',
+          class: 'TestClass',
+          method: 'testMethod',
+          attempts: 1,
+          time: 1.0,
+        },
+      ],
+      retriedCount: 0,
+    };
+
+    const jobId = getJobId(job.workflowName, job.jobName, prNumber);
+    const data = mergeCommitData(
+      null,
+      invalidCommitSha,
+      jobId,
+      job,
+      'owner/repo',
+    );
+    const body = formatCommentBody(data, marker, prNumber);
+
+    // Should not generate link for invalid SHA
+    expect(body).not.toContain(`/changes/${invalidCommitSha}`);
+    // Should still show short SHA as code
+    expect(body).toContain('<code>');
+  });
+
+  test('should escape HTML entities in test names', () => {
+    const marker = '<!-- 123#main#php-retry -->';
+    const prNumber = 123;
+    const commitSha = 'abcdef1234567890abcdef1234567890abcdef12';
+
+    const job: JobTestResult = {
+      jobName: 'Test Job',
+      workflowName: 'Test Workflow',
+      attempt: 1,
+      maxAttempts: 3,
+      status: 'passed',
+      failedTests: [],
+      flakyTests: [
+        {
+          name: 'TestClass::test<script>alert(1)</script>',
+          class: 'TestClass',
+          method: 'test<script>alert(1)</script>',
+          attempts: 1,
+          time: 1.0,
+        },
+      ],
+      retriedCount: 0,
+    };
+
+    const jobId = getJobId(job.workflowName, job.jobName, prNumber);
+    const data = mergeCommitData(null, commitSha, jobId, job, 'owner/repo');
+    const body = formatCommentBody(data, marker, prNumber);
+
+    // Should escape < and > to HTML entities
+    expect(body).toContain('&lt;script&gt;');
+    expect(body).toContain('&lt;/script&gt;');
+    // Should not contain raw HTML tags
+    expect(body).not.toContain('<script>alert(1)</script>');
+  });
+
+  test('should escape ampersands in test names', () => {
+    const marker = '<!-- 123#main#php-retry -->';
+    const prNumber = 123;
+    const commitSha = 'abcdef1234567890abcdef1234567890abcdef12';
+
+    const job: JobTestResult = {
+      jobName: 'Test Job',
+      workflowName: 'Test Workflow',
+      attempt: 1,
+      maxAttempts: 3,
+      status: 'passed',
+      failedTests: [],
+      flakyTests: [
+        {
+          name: 'TestClass::testMethod&param=value',
+          class: 'TestClass',
+          method: 'testMethod&param=value',
+          attempts: 1,
+          time: 1.0,
+        },
+      ],
+      retriedCount: 0,
+    };
+
+    const jobId = getJobId(job.workflowName, job.jobName, prNumber);
+    const data = mergeCommitData(null, commitSha, jobId, job, 'owner/repo');
+    const body = formatCommentBody(data, marker, prNumber);
+
+    // Should escape & to &amp;
+    expect(body).toContain('&amp;param=value');
+  });
+
+  test('should handle backward compatibility with missing version field', () => {
+    const marker = '<!-- 123#main#php-retry -->';
+    const commentBody = `${marker}\n<!-- data:eyJjb21taXRzIjp7ImFiY2RlZjEyMzQiOnsiam9icyI6eyJqb2IxIjp7ImpvYk5hbWUiOiJ0ZXN0Iiwid29ya2Zsb3dOYW1lIjoidGVzdCIsImF0dGVtcHQiOjEsIm1heEF0dGVtcHRzIjozLCJzdGF0dXMiOiJwYXNzZWQiLCJmYWlsZWRUZXN0cyI6W10sImZsYWt5VGVzdHMiOltdLCJyZXRyaWVkQ291bnQiOjB9fSwidGltZXN0YW1wIjoiMjAyNS0wMS0wMVQwMDowMDowMC4wMDBaIn19LCJyZXBvIjoib3duZXIvcmVwbyJ9 -->`;
+
+    const parsed = parseCommentData(commentBody);
+
+    // Should parse successfully even without version field
+    expect(parsed).not.toBeNull();
+    expect(parsed?.commits).toBeDefined();
+    expect(parsed?.repo).toBe('owner/repo');
+    // Version field is optional, so it may or may not be present
+  });
+
+  test('should set version field to 1 when creating new data', () => {
+    const commitSha = 'abcdef1234567890abcdef1234567890abcdef12';
+    const job: JobTestResult = {
+      jobName: 'Test Job',
+      workflowName: 'Test Workflow',
+      attempt: 1,
+      maxAttempts: 3,
+      status: 'passed',
+      failedTests: [],
+      flakyTests: [],
+      retriedCount: 0,
+    };
+
+    const jobId = getJobId(job.workflowName, job.jobName, 123);
+    const data = mergeCommitData(null, commitSha, jobId, job, 'owner/repo');
+
+    // Should have version field set to 1
+    expect(data.version).toBe(1);
+  });
+});

@@ -102,6 +102,7 @@ export interface CommitData {
  * Complete comment data structure
  */
 export interface CommentData {
+  version?: number; // structure version
   commits: Record<string, CommitData>; // key: commit SHA
   repo?: string; // owner/repo for generating commit links
 }

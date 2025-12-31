@@ -19,6 +19,17 @@ export const LOCAL_COMMIT_SHA = 'abc1234567890def1234567890abcdef12345678'; // F
 export const MAX_COMMENT_DELAY_MS = 10000; // 10 seconds
 
 /**
+ * Validation helpers
+ */
+function isValidRepoFormat(repo: string): boolean {
+  return /^[\w-]+\/[\w.-]+$/.test(repo);
+}
+
+function isValidCommitSha(sha: string): boolean {
+  return /^[0-9a-f]{40}$/i.test(sha);
+}
+
+/**
  * Comment message constants
  */
 export const COMMENT_MESSAGES = {
@@ -179,6 +190,7 @@ export function mergeCommitData(
     },
   };
 
+  // Sort newest-first to keep the recent N commits
   const sortedEntries = Object.entries(allCommits).sort(
     ([, a], [, b]) =>
       new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime(),
@@ -187,6 +199,7 @@ export function mergeCommitData(
   const recentCommits = sortedEntries.slice(0, MAX_COMMITS);
 
   return {
+    version: 1,
     commits: Object.fromEntries(recentCommits),
     repo: repo || existingData?.repo,
   };
@@ -241,11 +254,26 @@ function buildCommitSection(
   const testCount = flakyTests.length;
   const testText = testCount === 1 ? 'test' : 'tests';
 
+  // Validate repo and commit SHA before generating links
+  const isRepoValid = repo && isValidRepoFormat(repo);
+  const isShaValid = isValidCommitSha(commitSha);
+
+  if (!isRepoValid && repo) {
+    core.warning(
+      `Invalid repo format: ${repo}, skipping commit link generation`,
+    );
+  }
+  if (!isShaValid) {
+    core.warning(
+      `Invalid commit SHA format: ${commitSha}, using short SHA only`,
+    );
+  }
+
   let commitDisplay = `<code>${shortSha}</code>`;
-  if (repo && prNumber) {
+  if (isRepoValid && isShaValid && prNumber) {
     // Use PR-specific commit URL
     commitDisplay = `<a href="https://github.com/${repo}/pull/${prNumber}/changes/${commitSha}"><code>${shortSha}</code></a>`;
-  } else if (repo) {
+  } else if (isRepoValid && isShaValid) {
     // Fallback to generic commit URL
     commitDisplay = `<a href="https://github.com/${repo}/commit/${commitSha}"><code>${shortSha}</code></a>`;
   }
@@ -524,13 +552,22 @@ export function formatCommentBody(
     'Unable to format comment - data exceeds size limits even with truncation',
   );
 
-  return buildCommentTemplate(
-    marker,
-    base64Data,
-    `⚠️ Unable to display test results - exceeds GitHub's comment size limit
+  const errorMessage = `⚠️ Unable to display test results - exceeds GitHub's comment size limit
 
-The number of flaky tests is too large to display in a single comment.`,
-  );
+The number of flaky tests is too large to display in a single comment.`;
+
+  const fallbackBody = buildCommentTemplate(marker, base64Data, errorMessage);
+
+  // safety check: ensure even error message fits within limits
+  if (Buffer.byteLength(fallbackBody, 'utf-8') > MAX_COMMENT_SIZE) {
+    core.warning(
+      'Even fallback error message exceeds size limit, using minimal template',
+    );
+    // Minimal fallback: just marker and empty data
+    return `${marker}\n<!-- data:${base64Data} -->\n⚠️ Test data too large`;
+  }
+
+  return fallbackBody;
 }
 
 /**
@@ -593,8 +630,11 @@ function formatDuration(seconds: number): string {
 
 function escapeMarkdownTableCell(text: string): string {
   return text
-    .replace(/\|/g, '\\|') // Escape pipes (break table columns)
-    .replace(/`/g, '\\`') // Escape backticks (break inline code formatting)
-    .replace(/\n/g, ' ') // Replace newlines with spaces
-    .replace(/\r/g, ''); // Remove carriage returns
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/\|/g, '\\|')
+    .replace(/`/g, '\\`')
+    .replace(/\n/g, ' ')
+    .replace(/\r/g, '');
 }
