@@ -9,7 +9,7 @@ setups.**
 ## Usage
 
 ```yaml
-- uses: itznotabug/php-retry@v1
+- uses: itznotabug/php-retry@v3
   with:
     command: vendor/bin/phpunit tests/
     test_dir: tests
@@ -18,7 +18,7 @@ setups.**
 **With Docker:**
 
 ```yaml
-- uses: itznotabug/php-retry@v1
+- uses: itznotabug/php-retry@v3
   with:
     command: docker compose exec -T appwrite test /usr/src/code/tests/e2e
     test_dir: vendor/appwrite/server-ce/tests/e2e
