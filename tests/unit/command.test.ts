@@ -140,6 +140,26 @@ describe('CommandBuilder', () => {
 
       expect(result).toBe('appwrite');
     });
+
+    test('should extract when the docker call is wrapped in a shell script', () => {
+      const command = [
+        'SERVICE_PATH="/usr/src/code/tests/e2e/Services/Account"',
+        'FLAG=""',
+        'if [ "true" = "true" ]; then FLAG="--functional"; fi',
+        'docker compose exec -T -e _APP_VAR="x" appwrite vendor/bin/paratest "$SERVICE_PATH"',
+      ].join('\n');
+      const result = builder.extractContainerName(command);
+
+      expect(result).toBe('appwrite');
+    });
+
+    test('should extract when the docker call follows an && chain', () => {
+      const command =
+        'cd /usr/src/code && docker compose exec -T appwrite test /usr/src/code/tests';
+      const result = builder.extractContainerName(command);
+
+      expect(result).toBe('appwrite');
+    });
   });
 
   describe('buildExtractCommand', () => {

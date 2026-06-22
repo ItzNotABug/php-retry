@@ -83,33 +83,30 @@ export class CommandBuilder {
       '--env',
     ]);
 
-    let idx = 0;
-
-    // Skip environment variables (KEY=value format) at the start
-    while (idx < tokens.length && tokens[idx]!.includes('=')) {
-      idx++;
+    // Locate the `docker exec` / `docker compose exec` / `docker-compose exec`
+    // segment anywhere in the command. This mirrors isDockerCommand(), which
+    // matches the pattern by substring, so commands that wrap the docker call
+    // in shell logic (variable assignments, conditionals, && chains) are still
+    // handled instead of being rejected when the docker call is not at the start.
+    let idx = -1;
+    for (let i = 0; i < tokens.length; i++) {
+      if (tokens[i] === 'docker' && tokens[i + 1] === 'exec') {
+        idx = i + 2;
+        break;
+      } else if (
+        tokens[i] === 'docker' &&
+        tokens[i + 1] === 'compose' &&
+        tokens[i + 2] === 'exec'
+      ) {
+        idx = i + 3;
+        break;
+      } else if (tokens[i] === 'docker-compose' && tokens[i + 1] === 'exec') {
+        idx = i + 2;
+        break;
+      }
     }
 
-    if (
-      idx < tokens.length &&
-      tokens[idx] === 'docker' &&
-      tokens[idx + 1] === 'exec'
-    ) {
-      idx += 2;
-    } else if (
-      idx + 2 < tokens.length &&
-      tokens[idx] === 'docker' &&
-      tokens[idx + 1] === 'compose' &&
-      tokens[idx + 2] === 'exec'
-    ) {
-      idx += 3;
-    } else if (
-      idx + 1 < tokens.length &&
-      tokens[idx] === 'docker-compose' &&
-      tokens[idx + 1] === 'exec'
-    ) {
-      idx += 2;
-    } else {
+    if (idx === -1) {
       return null;
     }
 
