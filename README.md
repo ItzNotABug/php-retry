@@ -28,7 +28,7 @@ setups.**
 
 1. Runs your PHPUnit command with `--log-junit`
 2. On failure, parses JUnit XML to identify failed tests
-3. Analyzes `@depends` annotations to build dependency graph
+3. Analyzes `@depends` docblocks and `#[Depends]` attributes to build dependency graph
 4. Retries only failed tests + dependencies using `--filter`
 
 **Example:** If 3 out of 100 tests fail, retry attempts run only those 3 + their dependencies instead of all 100.

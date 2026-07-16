@@ -183,4 +183,29 @@ describe('DependencyResolver', () => {
     const testsToRun = filter ? filter.split('|').length : 0;
     expect(testsToRun).toBe(0);
   });
+
+  test('should include #[Depends] prerequisite in retry filter', () => {
+    // Regression: attribute-only Depends were ignored, so retries filtered just
+    // the failed test, PHPUnit skipped it, and exit 0 masked a real failure.
+    const resolver = new DependencyResolver();
+    const testFile = path.join(fixturesDir, 'attribute-test.php');
+
+    resolver.parseTestFile(testFile);
+
+    const filter = resolver.buildFilterPattern([
+      {
+        name: 'Tests\\Cloud\\E2E\\General\\UsageTest::testGaugesResourceTypeDimension',
+        class: 'UsageTest',
+        method: 'testGaugesResourceTypeDimension',
+        file: testFile,
+      },
+    ]);
+
+    expect(filter).toContain(
+      'Tests\\Cloud\\E2E\\General\\UsageTest::testGaugesResourceTypeDimension$',
+    );
+    expect(filter).toContain(
+      'Tests\\Cloud\\E2E\\General\\UsageTest::testPrepareStorageUsage$',
+    );
+  });
 });

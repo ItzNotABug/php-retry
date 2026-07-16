@@ -15,35 +15,44 @@ export class DependencyResolver {
     const className = classMatch[1]!;
     const fullClassName = namespace + className;
 
-    const methodRegex = /\/\*\*([\s\S]*?)\*\/\s*public\s+function\s+(test\w+)/g;
+    // Docblocks (@depends) and/or PHP attributes (#[Depends]) before each test method.
+    const methodRegex =
+      /((?:(?:\/\*\*[\s\S]*?\*\/|\#\[[\s\S]*?\])\s*)*)public\s+function\s+(test\w+)\s*\(/g;
 
     let match;
     while ((match = methodRegex.exec(content)) !== null) {
-      const docblock = match[1];
+      const prefix = match[1] ?? '';
       const methodName = match[2];
+      if (!methodName) continue;
 
-      if (!docblock || !methodName) continue;
-
-      const dependsRegex = /@depends\s+(\w+(?:::\w+)?)/g;
-      const dependencies: string[] = [];
-
-      let depMatch;
-      while ((depMatch = dependsRegex.exec(docblock)) !== null) {
-        const dep = depMatch[1];
-        if (!dep) continue;
-
-        if (dep.includes('::')) {
-          dependencies.push(dep);
-        } else {
-          dependencies.push(`${fullClassName}::${dep}`);
-        }
-      }
-
+      const dependencies = this.extractDependencies(prefix, fullClassName);
       if (dependencies.length > 0) {
-        const key = `${fullClassName}::${methodName}`;
-        this.dependencyMap.set(key, dependencies);
+        this.dependencyMap.set(`${fullClassName}::${methodName}`, dependencies);
       }
     }
+  }
+
+  private extractDependencies(prefix: string, fullClassName: string): string[] {
+    const dependencies: string[] = [];
+
+    const dependsDocRegex = /@depends\s+(\w+(?:::\w+)?)/g;
+    let depMatch;
+    while ((depMatch = dependsDocRegex.exec(prefix)) !== null) {
+      const dep = depMatch[1];
+      if (!dep) continue;
+      dependencies.push(dep.includes('::') ? dep : `${fullClassName}::${dep}`);
+    }
+
+    // #[Depends('testFoo')] and #[\PHPUnit\Framework\Attributes\Depends('testFoo')]
+    const dependsAttrRegex =
+      /#\[\s*(?:\\?PHPUnit\\Framework\\Attributes\\)?Depends\s*\(\s*['"]([^'"]+)['"]\s*\)\s*\]/g;
+    while ((depMatch = dependsAttrRegex.exec(prefix)) !== null) {
+      const dep = depMatch[1];
+      if (!dep) continue;
+      dependencies.push(dep.includes('::') ? dep : `${fullClassName}::${dep}`);
+    }
+
+    return [...new Set(dependencies)];
   }
 
   private resolveDependencies(
